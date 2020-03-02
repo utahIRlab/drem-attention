@@ -26,8 +26,8 @@ source venv/bin/activate
 
 **Install DREM from the source:**
 ```
-git clone https://github.com/QingyaoAi/Explainable-Product-Search-with-a-Dynamic-Relation-Embedding-Model.git
-cd knowledgeembedding
+git clone https://github.com/utahIRlab/drem-attention.git
+cd drem-attention
 python setup.py install #use setup-gpu.py for GPU support
 ```
 
@@ -123,21 +123,3 @@ bash exp_pipeline.sh
 | subsampling\_rate  | 0.0001  | 0.0001  | 0.0001  | 0.0001  |
 | window\_size  | 3 | 3 | 3 | 3 |
 | similarity\_func | bias\_product | bias\_product | bias\_product | bias\_product |
-
-### Generating data for Mturk survey
-Run the model with test mode as "explanation_path" to obtain explanations for all user-query-review pairs from the dataset.
-The generated explanations can be found in the output csv file path that you provided while running the model.
-This CSV file contains the following fields: user, query, product, explanation, previous_reviews.
-
-This CSV file should be provided as input to web_scrapper.py to scrape product title, image and description.
-The web scrapper generates a CSV file with following fields: user, query, product, explanation, previous_reviews, title, image, description.
-This output file is present as utils/mturk-batch-input.csv. 
-
-**Scrapper usage:**
-```
-python utils/web_scapper.py "your input file name"
-```
-
-The generated mturk-batch-input.csv file is to be uploaded to Amazon MTurk as a batch input file. The setup for MTurk survey is present in [this documentation][mturk-setup-doc].
-
-[mturk-setup-doc]: Setting%20up%20Mturk%20survey.pdf

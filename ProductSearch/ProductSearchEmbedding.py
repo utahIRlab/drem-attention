@@ -52,9 +52,9 @@ class ProductSearchEmbedding_model(object):
 
 		self.global_step = tf.Variable(0, trainable=False)
 		if query_weight >= 0:
-			self.Wu = tf.Variable(query_weight, name="user_weight", dtype=tf.float32, trainable=False)
+			self.Wq = tf.Variable(query_weight, name="query_weight", dtype=tf.float32, trainable=False)
 		else:
-			self.Wu = tf.sigmoid(tf.Variable(0, name="user_weight", dtype=tf.float32))
+			self.Wq = tf.sigmoid(tf.Variable(0, name="query_weight", dtype=tf.float32))
 		self.query_max_length = data_set.query_max_length
 		self.query_word_idxs = tf.placeholder(tf.int64, shape=[None, self.query_max_length], name="query_word_idxs")
 		self.learning_rate = tf.placeholder(tf.float32, name="learning_rate")
@@ -162,7 +162,7 @@ class ProductSearchEmbedding_model(object):
 		# Gradients and SGD update operation for training the model.
 		params = tf.trainable_variables()
 		if not forward_only:
-			opt = tf.train.GradientDescentOptimizer(self.learning_rate)
+			opt = tf.train.AdagradOptimizer(self.learning_rate)
 			self.gradients = tf.gradients(self.loss, params)
 
 			self.clipped_gradients, self.norm = tf.clip_by_global_norm(self.gradients,
@@ -289,7 +289,7 @@ class ProductSearchEmbedding_model(object):
 					self.embed_output_keys.append(key + '_bias')
 					output_feed.append(self.relation_dict[key]['bias'])
 				self.embed_output_keys.append('Wu')
-				output_feed.append(self.Wu)
+				output_feed.append(self.Wq)
 			elif 'explain' in test_mode:
 				if test_mode == 'explain_user_query':
 					entity_list = self.uq_entity_list

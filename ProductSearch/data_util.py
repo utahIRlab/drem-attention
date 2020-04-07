@@ -119,7 +119,8 @@ class Tensorflow_data:
 		# get the user history review and user product set
 		with gzip.open(data_path + "u_r_seq.txt.gz", 'rt') as fin:
 			for line in fin:
-				reviews = [int(_) for _ in line.rstrip().split(" ")]
+				review_ids = line.rstrip().split(" ")
+				reviews = [int(review_id_str) for review_id_str in review_ids if str.isnumeric(review_id_str)]
 				train_reviews = []
 				for review_idx in reviews:
 					if self.is_train_review[review_idx]:

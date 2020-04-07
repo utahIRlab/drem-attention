@@ -37,14 +37,21 @@ def get_product_scores(model, query_word_idx, product_idxs = None, scope = None)
 			product_bias = model.product_bias								
 												
 		print('Similarity Function : ' + model.similarity_func)										
-		#example_vec = (1.0 - model.Wu) * user_vec + model.Wu * query_vec
-		example_vec = user_vec + query_vec
-		
+
+		#for zero attention model, use zero attn weights as query weight
+		if 'ZAM' in model.net_struct:
+			zero_attn_weights = model.attention_distribution[:,-1]
+			zero_attn_weight_shape = tf.shape(zero_attn_weights)
+			zero_attn_weights = tf.reshape(zero_attn_weights, [zero_attn_weight_shape[0], 1])
+			example_vec = user_vec + zero_attn_weights * query_vec
+		else:
+			example_vec = (1.0 - model.Wq) * user_vec + model.Wq * query_vec
+
 		if model.similarity_func == 'product':										
 			return tf.matmul(example_vec, product_vec, transpose_b=True), example_vec
 		elif model.similarity_func == 'bias_product':
 			return tf.matmul(example_vec, product_vec, transpose_b=True) + product_bias, example_vec
-		else:										
+		else:
 			norm_vec = example_vec / tf.sqrt(tf.reduce_sum(tf.square(example_vec), 1, keep_dims=True))
 			product_vec = product_vec / tf.sqrt(tf.reduce_sum(tf.square(product_vec), 1, keep_dims=True))									
 			return tf.matmul(norm_vec, product_vec, transpose_b=True), example_vec
@@ -202,14 +209,22 @@ def get_user_embedding(model, word_idxs, word_emb):
 			print('User model: AEM')
 
 		word_vecs = tf.nn.embedding_lookup(word_emb, word_idxs)
-		query_vec,_ = get_RNN_from_words(model, word_vecs, None)
+		query_vec,_ = get_attention_from_words(model, word_vecs, None, "fs_slave")
 		attention_vecs = []
 		for key in model.user_history_dict:
 			embed_vec = tf.nn.embedding_lookup(model.user_history_dict[key]['embedding'], model.user_history_dict[key]['idxs'])
-			attention_vec = compute_attention_vec(query_vec, embed_vec, model.user_history_dict[key]['length'], model.user_history_dict[key]['name'], use_zero_attention)
+			attention_vec = compute_attention_vec(query_vec, embed_vec, model.user_history_dict[key]['length'], model.user_history_dict[key]['name'], False)
 			attention_vecs.append(attention_vec)
 
-		return tf.reduce_mean(attention_vecs, axis=0)
+		query_vec,_ = get_fs_from_words(model, word_vecs, None, "fs_master")
+		#compute attention on top of all attentions
+		hist_attention_vec = tf.transpose(attention_vecs, [1,0,2])
+		hist_vec_shape = tf.shape(hist_attention_vec)
+		hist_lengths = tf.fill([hist_vec_shape[0]], len(attention_vecs))
+		master_attention_vec = compute_attention_vec(query_vec, hist_attention_vec, hist_lengths,
+											  'master_attention', use_zero_attention)
+
+		return master_attention_vec
 
 def get_query_embedding(model, word_idxs, word_emb, reuse, scope = None):
 	word_vecs = tf.nn.embedding_lookup(word_emb, word_idxs)
@@ -229,10 +244,8 @@ def get_query_embedding(model, word_idxs, word_emb, reuse, scope = None):
 
 def build_graph_and_loss(model, scope = None):											
 	with variable_scope.variable_scope(scope or "embedding_graph"):	
-		loss = None
 		regularization_terms = []
 		batch_size = array_ops.shape(model.user_history_dict['product']['idxs'])[0]#get batch_size
-		# user + query -> product
 		query_vec = None
 		if model.dynamic_weight >= 0.0:
 			print('Treat query as a dynamic relationship')
@@ -247,11 +260,12 @@ def build_graph_and_loss(model, scope = None):
 			regularization_terms.extend([query_vec])
 
 		model.product_bias = tf.Variable(tf.zeros([model.entity_dict['product']['size'] + 1]), name="product_b")
-
 		user_vec = get_user_embedding(model, model.query_word_idxs, model.entity_dict['word']['embedding'])
-		uqr_loss, uqr_embs = pair_search_loss(model, model.Wu, query_vec, user_vec, model.user_history_dict['product']['idxs'], # product prediction loss
+
+		# user + query -> product
+		uqr_loss, uqr_embs = pair_search_loss(model, model.Wq, query_vec, user_vec, model.user_history_dict['product']['idxs'], # product prediction loss
 							model.product_idxs, model.entity_dict['product']['embedding'], model.product_bias,
-							len(model.entity_dict['product']['vocab']), model.data_set.product_distribute)
+							len(model.entity_dict['product']['vocab']), model.data_set.product_distribute, True)
 
 		regularization_terms.extend(uqr_embs)
 		#uqr_loss = tf.Print(uqr_loss, [uqr_loss], 'this is uqr', summarize=5)
@@ -331,7 +345,7 @@ def relation_nce_loss(model, add_weight, example_idxs, head_entity_name, relatio
 	#print(model.relation_dict[relation_name]['weight'].get_shape())
 	return tf.reduce_sum(model.relation_dict[relation_name]['weight'] * loss), embs									
 
-def pair_search_loss(model, add_weight, relation_vec, example_vec, example_idxs, label_idxs, label_emb, label_bias, label_size, label_distribution):
+def pair_search_loss(model, add_weight, relation_vec, example_vec, example_idxs, label_idxs, label_emb, label_bias, label_size, label_distribution, is_user_query_loss=False):
 	batch_size = array_ops.shape(example_idxs)[0]#get batch_size										
 	# Nodes to compute the nce loss w/ candidate sampling.										
 	labels_matrix = tf.reshape(tf.cast(label_idxs,dtype=tf.int64),[batch_size, 1])										
@@ -345,11 +359,20 @@ def pair_search_loss(model, add_weight, relation_vec, example_vec, example_idxs,
 			range_max=label_size,								
 			distortion=0.75,								
 			unigrams=label_distribution))								
-											
-	#get example embeddings [batch_size, embed_size]
-	#example_vec = tf.nn.embedding_lookup(example_emb, example_idxs) * (1-add_weight) + relation_vec * add_weight							
-	example_vec = example_vec + relation_vec
-											
+
+	#for user query loss, use weights for user vec and query vec
+	if is_user_query_loss:
+		# for zero attention model, use zero attn weights as query weight
+		if 'ZAM' in model.net_struct:
+			zero_attn_weights = model.attention_distribution[:, -1]
+			zero_attn_weight_shape = tf.shape(zero_attn_weights)
+			zero_attn_weights = tf.reshape(zero_attn_weights, [zero_attn_weight_shape[0], 1])
+			example_vec = example_vec + zero_attn_weights * relation_vec
+		else:
+			example_vec = (1.0 - add_weight) * example_vec + add_weight * relation_vec
+	else:
+		example_vec = example_vec + relation_vec
+
 	#get label embeddings and bias [batch_size, embed_size], [batch_size, 1]										
 	true_w = tf.nn.embedding_lookup(label_emb, label_idxs)										
 	true_b = tf.nn.embedding_lookup(label_bias, label_idxs)										

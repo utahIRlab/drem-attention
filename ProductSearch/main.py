@@ -278,7 +278,7 @@ def interactive_explain_mode():
 			else: # user + query
 				print('Enter user idx or name:')
 				user_idx = data_set.get_idx(sys.stdin.readline().strip(), 'user')
-				user_history_idx_dict =  data_set.get_user_history_idx(user_idx)
+				user_history_idx_dict =  data_set.get_user_history_idx(user_idx, model.max_history_length)
 				print('Enter query idx:')
 				query_idx = int(sys.stdin.readline().strip())
 				query_word_idx = model.data_set.query_words[query_idx]
@@ -327,7 +327,7 @@ def find_explanation_path():
 			csv_writer.writerow(['user','query','product','explanation', 'previous_reviews'])
 
 			for (user_idx, product_idx, query_idx, review_idx) in uqr_pairs:
-				user_history_idx_dict =  data_set.get_user_history_idx(user_idx)
+				user_history_idx_dict =  data_set.get_user_history_idx(user_idx, model.max_history_length)
 				for key in user_history_idx_dict:
 					test_feed[model.user_history_dict[key]['idxs'].name] = user_history_idx_dict[key]
 

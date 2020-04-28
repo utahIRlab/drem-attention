@@ -24,7 +24,7 @@ python /home/laknaren/workspace/drem-attention/utils/AmazonDataset/match_with_me
 # Randomly split train/test
 ## The 30% purchases of each user are used as test data
 ## Also, we randomly sample 20% queries and make them unique in the test set.
-python /home/laknaren/workspace/drem-attention/utils/AmazonDataset/random_split_train_test_data.py tmp_data/min_count5/ 0.3 0.3
+python /home/laknaren/workspace/drem-attention/utils/AmazonDataset/random_split_train_test_data.py tmp_data/s/ 0.3 0.3
 # Sequentially split train/test
 ## The last 20% purchases of each user are used as test data
 ## Also, we manually sample 20% queries and make them unique in the test set.

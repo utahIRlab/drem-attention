@@ -40,7 +40,7 @@ def get_product_scores(model, query_word_idx, product_idxs = None, scope = None)
 
 		#for zero attention model, use zero attn weights as query weight
 		if 'ZAM' in model.net_struct:
-			zero_attn_weights = model.attention_distribution[:,-1]
+			zero_attn_weights = model.attn_distribution_dict['master'][:,-1]
 			zero_attn_weight_shape = tf.shape(zero_attn_weights)
 			zero_attn_weights = tf.reshape(zero_attn_weights, [zero_attn_weight_shape[0], 1])
 			example_vec = user_vec + zero_attn_weights * query_vec
@@ -118,10 +118,11 @@ def get_attention_scores(current_state, attention_vecs, num_heads, scope_name, a
 		attention_vecs: a list of vectors to attend.
 		num_heads: the number of heads in the attention function.
 		scope_name: name of the scope to make sure weights are different for each scope
+		mask: mask for history information
 		attention_func: the name of the attention function.
 
 	Returns:
-		A triple consisting of the attention scores and the parameters for L2 regularization.
+		A tuple consisting of the attention scores and the parameters for L2 regularization.
 
 	"""
 	state_size = current_state.get_shape()[1]  # the dimension size of state vector
@@ -184,11 +185,11 @@ def get_user_embedding(model, word_idxs, word_emb):
 				# length mask
 				mask = tf.concat([tf.sequence_mask(lengths, maxlen=att_vecs_shape[1], dtype=tf.float32),
 								  tf.ones([att_vecs_shape[0], 1], dtype=tf.float32)], 1)
+
 				masked_att_exp = tf.exp(att_scores) * mask
 				div = tf.reduce_sum(masked_att_exp, 1, True)
 				att_dis = masked_att_exp / tf.where(tf.less(div, 1e-7), div + 1, div)
-				model.attention_distribution = att_dis
-				return tf.reduce_sum(att_vecs_with_zero * tf.expand_dims(att_dis, -1), 1)
+				return tf.reduce_sum(att_vecs_with_zero * tf.expand_dims(att_dis, -1), 1), att_dis
 
 			else:
 				att_scores, reg_terms = get_attention_scores(input_vec, att_vecs, model.num_heads, scope_name)
@@ -197,8 +198,7 @@ def get_user_embedding(model, word_idxs, word_emb):
 				masked_att_exp = tf.exp(att_scores) * mask
 				div = tf.reduce_sum(masked_att_exp, 1, True)
 				att_dis = masked_att_exp / tf.where(tf.less(div, 1e-7), div + 1, div)
-				model.attention_distribution = att_dis
-				return tf.reduce_sum(att_vecs * tf.expand_dims(att_dis, -1), 1)
+				return tf.reduce_sum(att_vecs * tf.expand_dims(att_dis, -1), 1), att_dis
 
 		use_zero_attention = False
 		if 'ZAM' in model.net_struct:  # mean vector
@@ -209,11 +209,12 @@ def get_user_embedding(model, word_idxs, word_emb):
 			print('User model: AEM')
 
 		word_vecs = tf.nn.embedding_lookup(word_emb, word_idxs)
-		query_vec,_ = get_attention_from_words(model, word_vecs, None, "fs_slave")
+		query_vec,_ = get_fs_from_words(model, word_vecs, None, "fs_slave")
 		attention_vecs = []
-		for key in model.user_history_dict:
+		for key in sorted(model.user_history_dict):
 			embed_vec = tf.nn.embedding_lookup(model.user_history_dict[key]['embedding'], model.user_history_dict[key]['idxs'])
-			attention_vec = compute_attention_vec(query_vec, embed_vec, model.user_history_dict[key]['length'], model.user_history_dict[key]['name'], False)
+			attention_vec, att_distribution = compute_attention_vec(query_vec, embed_vec, model.user_history_dict[key]['length'], model.user_history_dict[key]['name'], False)
+			model.attn_distribution_dict[key] = att_distribution
 			attention_vecs.append(attention_vec)
 
 		query_vec,_ = get_fs_from_words(model, word_vecs, None, "fs_master")
@@ -221,8 +222,9 @@ def get_user_embedding(model, word_idxs, word_emb):
 		hist_attention_vec = tf.transpose(attention_vecs, [1,0,2])
 		hist_vec_shape = tf.shape(hist_attention_vec)
 		hist_lengths = tf.fill([hist_vec_shape[0]], len(attention_vecs))
-		master_attention_vec = compute_attention_vec(query_vec, hist_attention_vec, hist_lengths,
+		master_attention_vec, master_att_dis = compute_attention_vec(query_vec, hist_attention_vec, hist_lengths,
 											  'master_attention', use_zero_attention)
+		model.attn_distribution_dict['master'] = master_att_dis
 
 		return master_attention_vec
 
@@ -364,7 +366,7 @@ def pair_search_loss(model, add_weight, relation_vec, example_vec, example_idxs,
 	if is_user_query_loss:
 		# for zero attention model, use zero attn weights as query weight
 		if 'ZAM' in model.net_struct:
-			zero_attn_weights = model.attention_distribution[:, -1]
+			zero_attn_weights = model.attn_distribution_dict['master'][:, -1]
 			zero_attn_weight_shape = tf.shape(zero_attn_weights)
 			zero_attn_weights = tf.reshape(zero_attn_weights, [zero_attn_weight_shape[0], 1])
 			example_vec = example_vec + zero_attn_weights * relation_vec

@@ -49,6 +49,7 @@ class ProductSearchEmbedding_model(object):
 		self.net_struct = net_struct
 		self.similarity_func = similarity_func
 		self.max_history_length = max_history_length
+		self.attn_distribution_dict = dict()
 
 		self.global_step = tf.Variable(0, trainable=False)
 		if query_weight >= 0:
@@ -60,9 +61,10 @@ class ProductSearchEmbedding_model(object):
 		self.learning_rate = tf.placeholder(tf.float32, name="learning_rate")
 		init_width = 0.5 / self.embed_size
 
-		def user_history(name, vocab):
+		def user_history(name, entity_type, vocab):
 			return {
 				'name': name,
+				'entity_type': entity_type,
 				'idxs': tf.placeholder(tf.int64, shape=[None, self.max_history_length],
 									   name="user_history_%s_idxs" % name),
 				'length': tf.placeholder(tf.int64, shape=[None], name="%s_history_length" % name),
@@ -72,12 +74,12 @@ class ProductSearchEmbedding_model(object):
 			}
 
 		self.user_history_dict = {
-			'product': user_history('item', data_set.product_ids),
-			'brand': user_history('brand', data_set.brand_ids),
-			'categories': user_history('category', data_set.category_ids),
-			'also_bought': user_history('also_bought', data_set.related_product_ids),
-			'also_viewed': user_history('also_viewed', data_set.related_product_ids),
-			'bought_together': user_history('bought_together', data_set.related_product_ids),
+			'product': user_history('item', 'product', data_set.product_ids),
+			'brand': user_history('brand', 'brand', data_set.brand_ids),
+			'categories': user_history('category', 'category', data_set.category_ids),
+			'also_bought': user_history('also_bought', 'product', data_set.related_product_ids),
+			'also_viewed': user_history('also_viewed', 'product', data_set.related_product_ids),
+			'bought_together': user_history('bought_together', 'product', data_set.related_product_ids),
 		}
 
 		def entity(name, vocab):
@@ -227,24 +229,6 @@ class ProductSearchEmbedding_model(object):
 			self.pic_scores, pic_vec = PersonalizedEmbedding.get_relation_scores(self, 0.5, p_vec, 'categories', 'categories')
 			'''
 
-			self.up_entity_list = []
-			for relation_name in self.relation_dict:
-				tail_entity = self.relation_dict[relation_name]['tail_entity']
-				e_vecs = self.entity_dict[tail_entity]['embedding']
-
-				# project user + query to tail_entity space and calculate probability
-				_, eu_vecs = PersonalizedEmbedding.get_relation_scores(self, 0.5, uq_vec, relation_name, tail_entity)
-				eu_sum = tf.reduce_sum(tf.math.exp(tf.matmul(eu_vecs, e_vecs, transpose_b=True)))
-				prob_e_eu = tf.math.exp(tf.matmul(eu_vecs, e_vecs, transpose_b=True) - 1) / eu_sum
-
-				# project product to tail_entity space and calculate probability
-				_, ei_vecs = PersonalizedEmbedding.get_relation_scores(self, 0.5, p_vec, relation_name, tail_entity)
-				ei_sum = tf.reduce_sum(tf.math.exp(tf.matmul(ei_vecs, e_vecs, transpose_b=True)))
-				prob_e_ei = tf.math.exp(tf.matmul(ei_vecs, e_vecs, transpose_b=True) - 1) / ei_sum
-				scores = prob_e_eu * prob_e_ei
-
-				self.up_entity_list.append((relation_name, tail_entity, scores))
-
 		self.saver = tf.train.Saver(tf.global_variables())
 
 	def step(self, session, input_feed, forward_only, test_mode='product_scores'):
@@ -295,9 +279,9 @@ class ProductSearchEmbedding_model(object):
 					entity_list = self.uq_entity_list
 				elif test_mode == 'explain_product':
 					entity_list = self.p_entity_list
-				elif test_mode == 'explain_user_product':
-					entity_list = self.up_entity_list
 				output_feed = [scores for _, _, scores in entity_list]
+			elif 'explanation_path' in test_mode:
+				output_feed = [self.attn_distribution_dict]
 			else:
 				output_feed = [self.product_scores]  # negative instance output
 

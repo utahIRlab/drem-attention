@@ -17,6 +17,7 @@ import operator
 from six.moves import xrange	# pylint: disable=redefined-builtin
 import tensorflow as tf
 import data_util
+import numpy as np
 
 from ProductSearchEmbedding import ProductSearchEmbedding_model
 
@@ -65,10 +66,7 @@ tf.app.flags.DEFINE_integer("max_history_length", 20,
 
 FLAGS = tf.app.flags.FLAGS
 
-EXPLANATION_TMPL_WRITE = "This product was retrieved because the user often writes about '{word}' in reviews which is used frequently to describe '{product}' by other users"
-EXPLANATION_TMPL_BRAND = "This product was retrieved because the user often buys products of brand '{word}' and '{product}' is also associated with brand '{word}'"
-EXPLANATION_TMPL_CATEGORY = "This product was retrieved because the user often buys products in category '{word}' and '{product}' is also associated with category '{word}'"
-EXPLANATION_TMPL_RELATED = "This product was retrieved because the user bought a related product '{word}' and '{product}' is also associated with this related product '{word}'"
+EXPLANATION_TMPL = "This product was retrieved for this query because the user often buys products related to {entity_type} '{entity_name}' which is also related to the query"
 
 
 def create_model(session, forward_only, data_set, review_size):
@@ -327,15 +325,16 @@ def find_explanation_path():
 			csv_writer.writerow(['user','query','product','explanation', 'previous_reviews'])
 
 			for (user_idx, product_idx, query_idx, review_idx) in uqr_pairs:
-				user_history_idx_dict =  data_set.get_user_history_idx(user_idx, model.max_history_length)
+				user_history_idx_dict, user_hist_len_dict =  model.get_history_and_length_dicts(review_idx)
 				for key in user_history_idx_dict:
-					test_feed[model.user_history_dict[key]['idxs'].name] = user_history_idx_dict[key]
+					test_feed[model.user_history_dict[key]['idxs'].name] = [user_history_idx_dict[key]]
+					test_feed[model.user_history_dict[key]['length'].name] = [user_hist_len_dict[key]]
 
 				test_feed[model.product_idxs.name] = [product_idx]
 				query_word_idx = model.data_set.query_words[query_idx]
 				test_feed[model.query_word_idxs.name] = [query_word_idx]
 
-				up_entity_list, _ = model.step(sess, test_feed, True, 'explain_user_product')
+				attn_distribution_dict, _ = model.step(sess, test_feed, True, 'explanation_path')
 				user = data_set.user_ids[user_idx]
 				product = data_set.product_ids[product_idx]
 				query = ' '.join([data_set.words[x] for x in query_word_idx if x < len(data_set.words)])
@@ -348,27 +347,19 @@ def find_explanation_path():
 
 				print('User %d %s' % (user_idx, user))
 				print('Product %d %s' % (product_idx, product))
-				overall_max = (None, None, -1, float('-inf'))
-				for relation_name, entity_name, entity_scores in up_entity_list:
-					entity_scores = entity_scores[0]
-					curr_max_val_index, curr_max_value = max(enumerate(entity_scores), key=operator.itemgetter(1))
-					if curr_max_value > overall_max[3]:
-						overall_max = (relation_name, entity_name, curr_max_val_index, curr_max_value)
-
-				print(overall_max)
-				relation_name, entity_name, max_index, _ = overall_max
-				word = data_set.entity_vocab[entity_name][max_index]
-				explanation = ""
-				if relation_name == 'write':
-					explanation = EXPLANATION_TMPL_WRITE.format(user=user, product= product, word=word)
-				elif relation_name == 'brand':
-					explanation = EXPLANATION_TMPL_BRAND.format(user=user, product=product, word=word)
-				elif relation_name == 'categories':
-					explanation = EXPLANATION_TMPL_CATEGORY.format(user=user, product=product, word=word)
-				else:
-					explanation = EXPLANATION_TMPL_RELATED.format(user=user, product=product, word=word)
-
-				csv_writer.writerow([user, query, product, explanation, '\n'.join(reviews)])
+				attn_values = np.array(attn_distribution_dict['master'])
+				max_index = attn_values.argmax()
+				#if zero vec has max attn
+				if max_index < len(model.user_history_dict.keys()):
+					key = sorted(list(model.user_history_dict.keys()))[max_index]
+					sub_attn_values = np.array(attn_distribution_dict[key])
+					max_sub_index = sub_attn_values.argmax()
+					hist_id = user_history_idx_dict[key][max_sub_index]
+					entity_name = data_set.get_entity(key, hist_id)
+					entity_type = model.user_history_dict[key]['entity_type']
+					if entity_name:
+						explanation = EXPLANATION_TMPL.format(entity_type=entity_type, entity_name=entity_name)
+						csv_writer.writerow([user, query, product, explanation, '\n'.join(reviews)])
 
 
 def main(_):

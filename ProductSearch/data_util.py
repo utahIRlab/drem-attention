@@ -351,5 +351,14 @@ class Tensorflow_data:
 			}
 
 
+	def get_entity(self, entity_type, index):
+		if entity_type == 'product':
+			entity_vocab = self.product_ids
+		else:
+			entity_vocab = self.knowledge[entity_type]['vocab']
 
+		if index < len(entity_vocab):
+			return entity_vocab[index]
+		else:
+			return ''
 

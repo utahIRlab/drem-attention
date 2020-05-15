@@ -4,6 +4,9 @@ import random
 import gzip
 import math
 
+EXPLANATION_TMPL = "This product was retrieved for this query because the user often buys products related to {entity_type} '{entity_name}' which is also related to the query"
+EXPLANATION_TMPL_DEFAULT = "This product was retrieved for this query because of the product's popularity"
+
 class Tensorflow_data:
 	def __init__(self, data_path, input_train_dir, set_name):
 		#get product/user/vocabulary information
@@ -362,3 +365,18 @@ class Tensorflow_data:
 		else:
 			return ''
 
+	def get_expln_with_max_attn(self, max_attn_index, user_history_dict, user_history_idx_dict,
+								attn_distribution_dict):
+		explanation = EXPLANATION_TMPL_DEFAULT
+		# if zero vec has max attn
+		if max_attn_index < len(user_history_dict.keys()):
+			key = sorted(list(user_history_dict.keys()))[max_attn_index]
+			sub_attn_values = np.array(attn_distribution_dict[key])
+			max_sub_index = sub_attn_values.argmax()
+			hist_id = user_history_idx_dict[key][max_sub_index]
+			entity_name = self.get_entity(key, hist_id)
+			entity_type = user_history_dict[key]['entity_type']
+			if entity_name:
+				explanation = EXPLANATION_TMPL.format(entity_type=entity_type, entity_name=entity_name)
+
+		return explanation

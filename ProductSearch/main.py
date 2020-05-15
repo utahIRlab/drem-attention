@@ -58,15 +58,13 @@ tf.app.flags.DEFINE_boolean("decode", False,
 tf.app.flags.DEFINE_string("test_mode", "product_scores", "Test modes: product_scores -> output ranking results and ranking scores; output_embedding -> output embedding representations for users, items and words. (default is product_scores)")
 tf.app.flags.DEFINE_integer("rank_cutoff", 100,
 							"Rank cutoff for output ranklists.")
-tf.app.flags.DEFINE_string("explanation_output_file", "./utils/explanation-output.csv",
-							"Output CSV file where generated explanations will be written")
+tf.app.flags.DEFINE_string("explanation_output_dir", "./utils/",
+							"Output CSV dir where generated explanations will be written")
 tf.app.flags.DEFINE_integer("max_history_length", 20,
 							"How many history purchases used for user profiling.")
 
 
 FLAGS = tf.app.flags.FLAGS
-
-EXPLANATION_TMPL = "This product was retrieved for this query because the user often buys products related to {entity_type} '{entity_name}' which is also related to the query"
 
 
 def create_model(session, forward_only, data_set, review_size):
@@ -309,7 +307,6 @@ def find_explanation_path():
 		# Create model.
 		print("Read model")
 		model = create_model(sess, True, data_set, data_set.train_review_size)
-		print('Start Interactive Process')
 		words_to_train = float(FLAGS.max_train_epoch * data_set.word_count) + 1
 		test_seq = [i for i in xrange(data_set.review_size)]
 		model.setup_data_set(data_set, words_to_train)
@@ -319,12 +316,14 @@ def find_explanation_path():
 
 		test_feed = copy.deepcopy(input_feed)
 
+		print('Generating explanations')
 
-		with open(FLAGS.explanation_output_file, mode='w') as write_csv_file:
+		with open(FLAGS.explanation_output_dir + 'explanation-output.csv', mode='w') as write_csv_file:
 			csv_writer = csv.writer(write_csv_file, delimiter=',')
-			csv_writer.writerow(['user','query','product','explanation', 'previous_reviews'])
-
+			csv_writer.writerow(['sample_id', 'user', 'query', 'product', 'explanation', 'attention_weight', 'previous_reviews'])
+			count = 0
 			for (user_idx, product_idx, query_idx, review_idx) in uqr_pairs:
+				sample_id = '-'.join([str(user_idx), str(product_idx), str(query_idx), str(review_idx)])
 				user_history_idx_dict, user_hist_len_dict =  model.get_history_and_length_dicts(review_idx)
 				for key in user_history_idx_dict:
 					test_feed[model.user_history_dict[key]['idxs'].name] = [user_history_idx_dict[key]]
@@ -342,24 +341,29 @@ def find_explanation_path():
 				review_word_idxs = [data_set.review_text[idx] for idx in review_idxs]
 				reviews = []
 				for idx, review_word_idx in enumerate(review_word_idxs):
+					if idx >= 5 :
+						break
 					review_txt = ' '.join([data_set.words[idx] for idx in review_word_idx if idx < len(data_set.words)])
 					reviews.append(str(idx+1) + ') ' + review_txt)
 
-				print('User %d %s' % (user_idx, user))
-				print('Product %d %s' % (product_idx, product))
-				attn_values = np.array(attn_distribution_dict['master'])
-				max_index = attn_values.argmax()
-				#if zero vec has max attn
-				if max_index < len(model.user_history_dict.keys()):
-					key = sorted(list(model.user_history_dict.keys()))[max_index]
-					sub_attn_values = np.array(attn_distribution_dict[key])
-					max_sub_index = sub_attn_values.argmax()
-					hist_id = user_history_idx_dict[key][max_sub_index]
-					entity_name = data_set.get_entity(key, hist_id)
-					entity_type = model.user_history_dict[key]['entity_type']
-					if entity_name:
-						explanation = EXPLANATION_TMPL.format(entity_type=entity_type, entity_name=entity_name)
-						csv_writer.writerow([user, query, product, explanation, '\n'.join(reviews)])
+				#get max attn from master to find which slave attn is more important
+				indexed_attn_values = list(enumerate(attn_distribution_dict['master'][0]))
+				top_values = sorted(indexed_attn_values, key=operator.itemgetter(1), reverse=True)[:3]
+				explanation = ''
+				expln_index = 1
+				max_attn = top_values[0][1]
+
+				# get explanation for top 3 attn scores from attention list
+				for index, attn_score in top_values:
+					curr_explanation = data_set.get_expln_with_max_attn(index, model.user_history_dict, user_history_idx_dict, attn_distribution_dict)
+					if curr_explanation:
+						explanation += str(expln_index) + '. ' + curr_explanation + '\n'
+						expln_index += 1
+
+				csv_writer.writerow([sample_id, user, query, product, explanation, max_attn, '\n'.join(reviews)])
+				count+=1
+
+			print("Generated " + str(count) + " explanations")
 
 
 def main(_):

@@ -1,17 +1,17 @@
 # Overview #
-This is an implementation of the Dynamic Relation Embedding Model (DREM) for personalized product search. Please cite the following paper if you plan to use it for your project：
-    
-*	Qingyao Ai, Yongfeng Zhang, Keping Bi, W. Bruce Croft. Explainable Product Search with a Dynamic Relation Embedding Model. ACM Transactions on Information Systems (TOIS). 2019
-    	
+This is an implementation of the Dynamic Relation Embedding Model (DREM) with Attention networks for better user representation in personalized product search. 
+
 The DREM is a deep neural network model that jointly learn latent representations for queries, products, users, and knowledge entities. 
 It is designed as a generative model and the embedding representations for queries, users and items in the DREM are learned through optimizing the log likelihood of observed entity relationships. 
 The probability (which is also the rank score) of an item being purchased by a user with a query can be computed with their corresponding latent representations. 
 Please refer to the paper for more details.
 
+*	Qingyao Ai, Yongfeng Zhang, Keping Bi, W. Bruce Croft. Explainable Product Search with a Dynamic Relation Embedding Model. ACM Transactions on Information Systems (TOIS). 2019
+
 * For data used in the original paper, please check https://github.com/QingyaoAi/Amazon-Product-Search-Datasets
 
 ### Requirements: ###
-    1. To run the DREM model in ./ProductSearch/ and the python scripts in ./utils/, python 3.0+ and Tensorflow v1.3+ are needed. (In the paper, we used python 3.6 and Tensorflow v1.4.0)
+    1. To run the DREM-Attention model in ./ProductSearch/ and the python scripts in ./utils/, python 3.0+ and Tensorflow v1.3+ are needed. (In the paper, we used python 3.6 and Tensorflow v1.4.0)
     2. To run the jar package in ./utils/AmazonDataset/jar/, JDK 1.7 is needed
     3. To compile the java code in ./utils/AmazonDataset/java/, galago from lemur project (https://sourceforge.net/p/lemur/wiki/Galago%20Installation/) is needed. 
 
@@ -24,7 +24,7 @@ pip install --user virtualenv
 source venv/bin/activate
 ```
 
-**Install DREM from the source:**
+**Install DREM-Attention from the source:**
 ```
 git clone https://github.com/utahIRlab/drem-attention.git
 cd drem-attention
@@ -56,7 +56,11 @@ bash exp_pipeline.sh
                 1. <jsonConfigFile> : A json file that specify the file path of stop words list. An example can be found in the root directory. Enter “false” if don’t want to remove stop words. 
                 2. <meta_data_file>:  the path for the meta data
                 3. <indexed_data_dir>: the directory for indexed data
-        3. Split datasets for training and test
+        3. Collect time sequence information from user's purchase history:
+            1. python3 ./utils/AmazonDataset/collect_time_seq_info.py <indexed_data_dir> <jsonConfigFile>
+                1. <indexed_data_dir>: the directory for indexed data
+                2. <jsonConfigFile> : A json file that specify the file path of stop words list. An example can be found in the root directory.
+        4. Split datasets for training and test
             1. python ./utils/AmazonDataset/random_split_train_test_data.py <indexed_data_dir> <review_sample_rate> <query_sample_rate>
             2. <indexed_data_dir>: the directory for indexed data
             3. <review_sample_rate>: the proportion of reviews used in test for each user (e.g. in our paper, we used 0.3).
@@ -81,13 +85,12 @@ bash exp_pipeline.sh
             2. “cosine”: the cosine similarity of two vectors.
             3. “bias_product”: the dot product plus a item-specific bias
         12. net_struct:  Network structure parameters. Different parameters are separated by “_” (e.g. ). Default “simplified_fs”
-            1. “LSE”: the latent space entity model proposed by Gysel et al. [1]
-            2. “simplified”: simplified embedding-based language models without modeling for each review [2]
-            3. “pv”: embedding-based language models with review modeling using paragraph vector model. [3]
-            4. “hdc”: regularized embedding-based language models with word context. [4]
-            5. “mean”: average word embeddings for query embeddings [5]
-            6. “fs”: average word embeddings with non-linear projection for query embeddings [1]
-            7. “RNN”: recurrent neural network encoder for query embeddings
+            1. “ZAM”: the zero attention model proposed by Ai et al. [3]
+            2. “LSE”: the latent space entity model proposed by Gysel et al. [1]
+            3. “simplified”: simplified embedding-based language models without modeling for each review [2]
+            4. “mean”: average word embeddings for query embeddings [5]
+            5. “fs”: average word embeddings with non-linear projection for query embeddings [1]
+            6. “RNN”: recurrent neural network encoder for query embeddings
         13. embed_size: Size of each embedding. Default 100.
         14. window_size: Size of context window for hdc model. Default 5.
         15. max_train_epoch: Limit on the epochs of training (0: no limit). Default 5.
@@ -101,25 +104,62 @@ bash exp_pipeline.sh
             3. “explain": start interactive explanation mode. Specify product, user, and query id to find the nearest neighbors of each entity in different entity space. Read interactive_explain_mode() in ./ProductSearch/main.py for more information.
             4. "explanation_path": generate explanation paths for all user-query-product pairs in the test batch. 
         21. rank_cutoff: Rank cutoff for output rank lists. Default 100.
-        22. explanation_output_file: Output csv file path for generated explanations. Provide only when test_mode is explanation_path.
+        22. explanation_output_dir: Output directory for generated explanations. Provide only when test_mode is 'explanation_path'.
+        23. max_history_length: Max number of products used by the model from user's purchase history. Default 20
     2. Evaluation
         1. After training with "--decode False”, generate test rank lists with "--decode True”.
         2. TREC format rank lists for test data will be stored in <train_dir> with name “test.<similarity_func>.ranklist”
         3. Evaluate test rank lists with ground truth <input_train_dir>/test.qrels using trec_eval or galago eval tool.
 
-### Example Parameter Settings ###
+### Example train & test scripts
+   **Train model**
+   ```
+    python ./ProductSearch/main.py --data_dir=<data-dir> --input_train_dir=<input-train-dir> --min_count 5 
+    --learning_rate 0.5 --max_train_epoch 20 --embed_size 100 --subsampling_rate 1e-4 --L2_lambda 0.005 
+    --batch_size 64 --window_size 3 --negative_sample 5 --rank_cutoff 100 --similarity_func 'bias_product' 
+    --query_weight 0.5 --train_dir <train-dir>
+   ```
+   **Test & generate ranklist**
+   ```    
+    python ./ProductSearch/main.py --data_dir=<data-dir> --input_train_dir=<input-train-dir> --min_count 5 
+    --learning_rate 0.5 --max_train_epoch 20 --embed_size 100 --subsampling_rate 1e-4 --L2_lambda 0.005 
+    --batch_size 64 --window_size 3 --negative_sample 5 --rank_cutoff 100 --similarity_func 'bias_product' 
+    --query_weight 0.5 --train_dir <train-dir> --decode True
+   ```
+   **Test & generate explanations**
+   ```
+    python ./ProductSearch/main.py --data_dir=<data-dir> --input_train_dir=<input-train-dir> --min_count 5 
+    --learning_rate 0.5 --max_train_epoch 20 --embed_size 100 --subsampling_rate 1e-4 --L2_lambda 0.005 
+    --batch_size 64 --window_size 3 --negative_sample 5 --rank_cutoff 100 --similarity_func 'bias_product' 
+    --query_weight 0.5 --train_dir <train-dir> --decode True --test_mode explanation_path --explanation_output_dir <explanation-output-dir>
+   ```
+   
+### Generating data for Mturk survey
+Run the model with test mode as "explanation_path" to obtain explanations for all user-query-review pairs from the dataset.
+The generated explanations can be found in the output CSV file path that you provided while running the model.
+This CSV file contains the following fields: user, query, product, explanation, previous_reviews.
 
-| Hyper-parameters  | Electronics | Kindle Store | CDs & Vinyl | Cell Phones & Accessories |
-| ------------- | ------------- | ------------- | ------------- | ------------- |
-| min\_count | 5 | 5 | 5 | 5 |
-| embed\_size  | 400 | 400 | 400 | 400 |
-| negative\_sample  | 5 | 5 | 5 | 5 |
-| learning\_rate | 0.5 | 0.5 | 0.5 | 0.5 |
-| max\_train\_epoch | 20 | 20 | 20 | 20 |
-| net\_struct | fs | fs | fs | fs |
-| batch\_size | 64 | 64 | 64 | 64 |
-| dynamic\_weight | 0.1 | 0.5 | 0.3 | 0.2 |
-| L2\_lambda | 0.005 | 0.005 | 0.005 | 0.005 |
-| subsampling\_rate  | 0.0001  | 0.0001  | 0.0001  | 0.0001  |
-| window\_size  | 3 | 3 | 3 | 3 |
-| similarity\_func | bias\_product | bias\_product | bias\_product | bias\_product |
+Likewise, run the DREM model with test mode "explanation_path" to obtain explanations for all user-query-review pairs from the dataset.
+The generated explanations can be found in the output CSV file path that you provided while running the model.
+Now, merge the explanations from both these CSV files to generate a single csv file for Mturk. 
+
+**Merge explanations:**
+
+```
+python utils/merge_explanations.py <your drem csv file name> <your drem attention csv file name> <output file>
+```
+
+This merged output CSV file should be provided as input to web_scrapper.py to scrape product title, image and description.
+The web scrapper generates a CSV file with following fields: sample_id, user, query, product, drem_explanation, drem_attn_explanation, previous_reviews, title, image, description.
+This output file is present in utils/mturk-batch-input.csv. 
+
+**Scrapper usage:**
+```
+python utils/web_scapper.py <your input file name>
+```
+
+The generated mturk-batch-input.csv file is to be uploaded to Amazon MTurk as a batch input file. The setup for MTurk survey is present in [this documentation][mturk-setup-doc].
+The MTurk UI design for the survey is available [here][mturk-ui-design].
+
+[mturk-setup-doc]: Setting%20up%20Mturk%20survey.pdf   
+[mturk-ui-design]: utils/mturkUI.html

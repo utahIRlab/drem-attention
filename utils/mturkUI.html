@@ -19,7 +19,7 @@
 }
 
 .reviews{
-    font-size:12px;
+    width: 90%;
 }
 
 </style>
@@ -32,30 +32,31 @@
           <h5>Note: Please scroll down to go the tabbed section. Click on each tab (Tab1, Tab2, Tab3) to view the corresponding question.</h5>
           	  <p>
                   <strong>User query: </strong>
-                  <!--<i>${query}</i>-->
-                  <i>"electronics computer touch tablet accessory screen protector"</i>
+                  <i>${query}</i>
+                  <!--<i>"electronics computer touch tablet accessory screen protector"</i>-->
               </p>
           	  <p>
                   <strong>Product retrieved as search result:</strong>
-                  <!--${title}-->
-                  QEONIX iPhone XS Max Privacy Screen Protector 6.5 inch, Premium Anti-Spy Real 9H Tempered 3D Glass / Case Friendly, Scratch Proof
+                  ${title}
+                  <!--QEONIX iPhone XS Max Privacy Screen Protector 6.5 inch, Premium Anti-Spy Real 9H Tempered 3D Glass / Case Friendly, Scratch Proof-->
               </p>
               <div>
           	  <div class='horizontal-grp'>
-          	      <!--<img src="${image}" width="200px" height="200px"/>-->
-                  <img src="https://images-na.ssl-images-amazon.com/images/I/61kUr8OIekL._SX679_.jpg" width="200px" height="200px"/>
+          	      <img src="${image}" width="200px"/>
+                  <!--<img src="https://images-na.ssl-images-amazon.com/images/I/61kUr8OIekL._SX679_.jpg" width="200px" height="200px"/>-->
               </div>
               <div class='horizontal-grp description'>
                   <p>
                       <strong>Product description:</strong>
-                      <crowd-modal link-text="Click to view description">
+                      ${description}
+                      <!--<crowd-modal link-text="Click to view description">
                           ${description}
-                      </crowd-modal>
+                      </crowd-modal>-->
                   </p>
                   <p>
               	      <strong>Product url:</strong>
-              	     <!--<a href="https://www.amazon.com/dp/${product}">https://www.amazon.com/dp/${product}</a>-->
-              	     <a href="https://www.amazon.com/dp/B00AGABISW">https://www.amazon.com/dp/B00AGABISW</a>
+              	     <a href="https://www.amazon.com/dp/${product}">https://www.amazon.com/dp/${product}</a>
+              	     <!--<a href="https://www.amazon.com/dp/B00AGABISW">https://www.amazon.com/dp/B00AGABISW</a>-->
 
           	     </p>
               </div>
@@ -64,10 +65,11 @@
                   <strong>Past reviews by user:</strong>
                   <!--${previous_reviews}-->
                   <ul class='reviews'>
-                      <li>great case this is a great case if you are look for a case to protect you iphone you should buy this my husband love his new case it cover the phone the price was great i had search for the otterbox defend case and the price was to much but this was a great buy well worth the money and he wants another just to have a back up lol love case</li>
+                      ${previous_reviews}
+                      <!--<li>great case this is a great case if you are look for a case to protect you iphone you should buy this my husband love his new case it cover the phone the price was great i had search for the otterbox defend case and the price was to much but this was a great buy well worth the money and he wants another just to have a back up lol love case</li>
                       <li>cover sheet i had a issue with not get my product i contact the company and they respond to me asap and within a few days i received my product which works great on my bb torch</li>
                       <li>snap on case great product and fast shipping this item ready do protect my blackberry the only thing is if you drop your phone the case break eas if the shipping didnt cost so much i would order more</li>
-                      <li>nice case i love this case i got so many compliments about my case but it was broke and i contact the company and they treat me great i will be order me and some of my friends this case i want to thank the company for hand my issue and they can look forward to me order other</li>
+                      <li>nice case i love this case i got so many compliments about my case but it was broke and i contact the company and they treat me great i will be order me and some of my friends this case i want to thank the company for hand my issue and they can look forward to me order other</li>-->
                   </ul>
               </div>
         </div>
@@ -108,7 +110,7 @@
               good and bad answers here can help get good results. You can include
               any HTML here. -->
     <short-instructions>
-        <!--If someone searched for <strong>${search_text}</strong>, would this item be relevant to them?-->
+        <!--If someone searched for <strong>${query}</strong>, would this item be relevant to them?-->
         There are two explanation groups with atmost 3 explanations in each explaining why the product above was retrieved for the query given by the user. Please identify which of the two groups help you in understanding better about the product that was retrieved. <br>
      <i> Note: The product retrieved is displayed in the above section. </i>
 
@@ -118,7 +120,7 @@
             instructions and additional examples of good and bad answers here can
             help get good results. You can include any HTML here. -->
 <!--       <full-instructions header="Search Relevance Instructions">
-        <p>If someone searched for <b>${search_text}</b>, would this item be relevant to them?</p>
+        <p>If someone searched for <b>${query}</b>, would this item be relevant to them?</p>
         <div>
           <h4>Definition of relevance:</h4>
 

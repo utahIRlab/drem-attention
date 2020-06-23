@@ -4,8 +4,8 @@ import random
 import gzip
 import math
 
-EXPLANATION_TMPL = "This product was retrieved for this query because the user often buys products related to {entity_type} '{entity_name}' which is also related to the query"
-EXPLANATION_TMPL_DEFAULT = "This product was retrieved for this query because of the product's popularity"
+#EXPLANATION_TMPL = "This product was retrieved for this query because the user often buys products related to {entity_type} '{entity_name}' which is also related to the query"
+#EXPLANATION_TMPL_DEFAULT = "This product was retrieved for this query because of the product's popularity"
 
 class Tensorflow_data:
 	def __init__(self, data_path, input_train_dir, set_name):
@@ -244,6 +244,11 @@ class Tensorflow_data:
 				arr = line.strip().split('\t')
 				self.user_train_product_set_list[int(arr[0])].add(int(arr[1]))
 
+	def read_org_product_reviews(self, data_path):
+		self.org_review_text = []
+		with gzip.open(data_path + 'review_text.txt.gz', 'rt') as fin:
+			for line in fin:
+				self.org_review_text.append([int(i) for i in line.strip().split(' ')])
 
 	def compute_test_product_ranklist(self, u_idx, original_scores, sorted_product_idxs, rank_cutoff):
 		product_rank_list = []
@@ -365,18 +370,60 @@ class Tensorflow_data:
 		else:
 			return ''
 
-	def get_expln_with_max_attn(self, max_attn_index, user_history_dict, user_history_idx_dict,
+	def generate_explanation(self, relation_type, att_percentage, entity_type=None, entity_name=None):
+		EXPLANATION_TMPL_DEFAULT = "For {percentage}%, this product was retrieved because of its popularity among people who searched for this query."
+		EXPLANATION_TMPL_0 = "For {percentage}%, this product was retrieved because of the products previously purchased by the user, especially '<em>{entity_name}</em>'."
+		EXPLANATION_TMPL_1 = "For {percentage}%, this product was retrieved because of the <em>{relation_type}</em> of products previously purchased by the user, especially '<em>{entity_name}</em>'."
+		EXPLANATION_TMPL_2 = "For {percentage}%, this product was retrieved because of the {entity_type} <em>{relation_type}</em> with the products previously purchased by the user, especially '<em>{entity_name}</em>'."
+		
+		explanation = None
+		if relation_type == 'popularity':
+			explanation = EXPLANATION_TMPL_DEFAULT.format(percentage=att_percentage)
+		elif relation_type == 'product':
+			explanation = EXPLANATION_TMPL_0.format(
+					percentage=att_percentage,
+					entity_name=entity_name
+				)
+		elif relation_type == 'brand' or relation_type == 'categories':
+			explanation = EXPLANATION_TMPL_1.format(
+					percentage=att_percentage,
+					relation_type=relation_type, 
+					entity_name=entity_name
+				)
+		else: #'also_bought', 'also_viewed', 'bought_together'
+			explanation = EXPLANATION_TMPL_2.format(
+					percentage=att_percentage,
+					entity_type=entity_type,
+					relation_type=relation_type, 
+					entity_name=entity_name
+				)
+		return explanation
+
+	def get_expln_with_max_attn(self, index, attn_score, user_history_dict, user_history_idx_dict,
 								attn_distribution_dict):
-		explanation = EXPLANATION_TMPL_DEFAULT
+		explanation = None
+		att_percentage = '%.2f' % (100*attn_score)
+		# The attn score of zero vec is the last dimension in the attn vector
 		# if zero vec has max attn
-		if max_attn_index < len(user_history_dict.keys()):
-			key = sorted(list(user_history_dict.keys()))[max_attn_index]
+		if index == len(user_history_dict.keys()):
+			explanation = self.generate_explanation('popularity', att_percentage)
+		elif att_percentage >= 0.01:
+			key = sorted(list(user_history_dict.keys()))[index]
+			print('%d, %.2f, %s' % (index, attn_score, key))
 			sub_attn_values = np.array(attn_distribution_dict[key])
+			print('history content')
+			print(user_history_idx_dict[key])
+			print('attention')
+			print(sub_attn_values)
 			max_sub_index = sub_attn_values.argmax()
 			hist_id = user_history_idx_dict[key][max_sub_index]
 			entity_name = self.get_entity(key, hist_id)
 			entity_type = user_history_dict[key]['entity_type']
 			if entity_name:
-				explanation = EXPLANATION_TMPL.format(entity_type=entity_type, entity_name=entity_name)
-
+				explanation = self.generate_explanation(
+					key, 
+					att_percentage,
+					entity_type=entity_type, 
+					entity_name=entity_name
+				)
 		return explanation

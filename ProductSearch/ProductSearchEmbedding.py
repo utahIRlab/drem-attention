@@ -439,13 +439,15 @@ class ProductSearchEmbedding_model(object):
 		has_next = False if self.cur_review_i == self.review_size else True
 		return input_feed, has_next
 
-	def prepare_test_epoch(self):
+	def prepare_test_epoch(self, sampled_uqi_triples=None):
 		self.test_user_query_set = set()
 		self.test_seq = []
 		for review_idx in range(len(self.data_set.review_info)):
 			user_idx = self.data_set.review_info[review_idx][0]
 			product_idx = self.data_set.review_info[review_idx][1]
 			for query_idx in self.data_set.product_query_idx[product_idx]:
+				if sampled_uqi_triples != None and (user_idx, query_idx, product_idx) not in sampled_uqi_triples:
+					continue
 				if (user_idx, query_idx) not in self.test_user_query_set:
 					self.test_user_query_set.add((user_idx, query_idx))
 					self.test_seq.append((user_idx, product_idx, query_idx, review_idx))

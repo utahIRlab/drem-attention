@@ -127,7 +127,7 @@ def get_attention_scores(current_state, attention_vecs, num_heads, scope_name, a
 	"""
 	state_size = current_state.get_shape()[1]  # the dimension size of state vector
 	attn_size = attention_vecs.get_shape()[2]  # the dimension size of each output vector
-	print("state_size: ", state_size, "attention size: ", attn_size)
+	#print("state_size: ", state_size, "attention size: ", attn_size)
 	att_score_list = []
 	regularization_terms = []
 	if attention_func == 'dot':

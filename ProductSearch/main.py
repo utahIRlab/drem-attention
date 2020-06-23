@@ -58,6 +58,12 @@ tf.app.flags.DEFINE_boolean("decode", False,
 tf.app.flags.DEFINE_string("test_mode", "product_scores", "Test modes: product_scores -> output ranking results and ranking scores; output_embedding -> output embedding representations for users, items and words. (default is product_scores)")
 tf.app.flags.DEFINE_integer("rank_cutoff", 100,
 							"Rank cutoff for output ranklists.")
+tf.app.flags.DEFINE_integer("explanation_previous_review_num", 10,
+							"How many previous reviews to show for each user in explanation evaluation.")
+tf.app.flags.DEFINE_integer("explanation_candidate_num", 3,
+							"How many explanation candidates to show for each item in explanation evaluation.")
+tf.app.flags.DEFINE_string("sample_file_for_explanation", "./utils/",
+							"A file of sampled queries and corresponding items (query_id\titem_name) for which to generate explanation.")
 tf.app.flags.DEFINE_string("explanation_output_dir", "./utils/",
 							"Output CSV dir where generated explanations will be written")
 tf.app.flags.DEFINE_integer("max_history_length", 20,
@@ -355,7 +361,111 @@ def find_explanation_path():
 
 				# get explanation for top 3 attn scores from attention list
 				for index, attn_score in top_values:
-					curr_explanation = data_set.get_expln_with_max_attn(index, model.user_history_dict, user_history_idx_dict, attn_distribution_dict)
+					curr_explanation = data_set.get_expln_with_max_attn(index, attn_score, model.user_history_dict, user_history_idx_dict, attn_distribution_dict)
+					if curr_explanation:
+						explanation += str(expln_index) + '. ' + curr_explanation + '\n'
+						expln_index += 1
+
+				csv_writer.writerow([sample_id, user, query, product, explanation, max_attn, '\n'.join(reviews)])
+				count+=1
+
+			print("Generated " + str(count) + " explanations")
+
+def find_explanation_path_for_samples():
+	print("Reading data in %s" % FLAGS.data_dir)
+
+	data_set = data_util.Tensorflow_data(FLAGS.data_dir, FLAGS.input_train_dir, 'test')
+	data_set.read_train_product_ids(FLAGS.input_train_dir)
+	data_set.read_org_product_reviews(FLAGS.data_dir)
+	config = tf.ConfigProto()
+	config.gpu_options.allow_growth = True
+
+	# Read sample user-query-item triples for explanations
+	print('Read user-query-item triples for explanations')
+	sampled_uqi_triples = None
+	if os.path.isfile(FLAGS.sample_file_for_explanation):
+		with open(FLAGS.sample_file_for_explanation) as fin:
+			sampled_uqi_triples = set()
+			for line in fin:
+				arr = line.split()
+				product_id = data_set.get_idx(arr[1], 'product') 
+				arr2 = arr[0].split('_')
+				user_id = data_set.get_idx(arr2[0], 'user') 
+				query_id = int(arr2[1])
+				sampled_uqi_triples.add((user_id, query_id, product_id))
+			if len(sampled_uqi_triples) < 1:
+				sampled_uqi_triples = None
+
+	with tf.Session(config=config) as sess, open(FLAGS.explanation_output_dir + 'explanation-output.csv', mode='w') as write_csv_file:
+		# Create model.
+		print("Read model")
+		model = create_model(sess, True, data_set, data_set.train_review_size)
+		words_to_train = float(FLAGS.max_train_epoch * data_set.word_count) + 1
+		test_seq = [i for i in xrange(data_set.review_size)]
+		model.setup_data_set(data_set, words_to_train)
+		model.intialize_epoch(test_seq)
+		model.prepare_test_epoch(sampled_uqi_triples=sampled_uqi_triples)
+		has_next = True
+
+		print('Generating explanations')
+		csv_writer = csv.writer(write_csv_file, delimiter=',')
+		csv_writer.writerow(['sample_id', 'user', 'query', 'product', 'explanation', 'attention_weight', 'previous_reviews'])
+		count = 0
+
+		while has_next:
+			# get inputs
+			input_feed, has_next, uqr_pairs = model.get_test_batch()
+			# Compute attention
+			attn_distribution_dict, _ = model.step(sess, input_feed, True, 'explanation_path')
+
+			# Creat explanations
+			for i in range(len(uqr_pairs)):
+				user_idx, product_idx, query_idx, review_idx = uqr_pairs[i]
+				sample_id = '-'.join([str(user_idx), str(product_idx), str(query_idx), str(review_idx)])
+				user = data_set.user_ids[user_idx]
+				product = data_set.product_ids[product_idx]
+				user_history_idx_dict, user_hist_len_dict =  model.get_history_and_length_dicts(review_idx)
+				# Get query string
+				query_word_idx = model.data_set.query_words[query_idx]
+				query = ' '.join([data_set.words[x] for x in query_word_idx if x < len(data_set.words)])
+				# Get 10 most recent reviews
+				review_idxs = data_set.user_history_idxs['review'][user_idx]
+				sampled_review_count = 0
+				reviews = []
+				for review_id in reversed(review_idxs):
+					review_word_idxs = data_set.org_review_text[review_id]
+					review_txt = ' '.join([data_set.words[idx] for idx in review_word_idxs if idx < len(data_set.words)])
+					sampled_review_count += 1
+					reviews.append(str(sampled_review_count) + ') ' + review_txt)
+					if sampled_review_count >= FLAGS.explanation_previous_review_num:
+						break
+
+				# Create explanations
+				cur_attn_distribution_dict = {key: attn_distribution_dict[key][i] for key in attn_distribution_dict}
+				indexed_attn_values = list(enumerate(cur_attn_distribution_dict['master']))
+				
+				#merge empty entity attention to global zero attention
+				sorted_keys = sorted(list(model.user_history_dict.keys()))
+				zero_vec_index = len(sorted_keys)
+				for idx in range(len(indexed_attn_values)):
+					if idx < zero_vec_index:
+						key = sorted_keys[idx]
+						if sum(cur_attn_distribution_dict[key]) == 0:
+							zero_attn_score = indexed_attn_values[zero_vec_index][1]
+							indexed_attn_values[zero_vec_index] = (zero_vec_index, zero_attn_score + indexed_attn_values[idx][1])
+							indexed_attn_values[idx] = (idx, 0)
+
+				#get max attn from master to find which slave attn is more important
+				sorted_values = sorted(indexed_attn_values, key=operator.itemgetter(1), reverse=True)
+				top_values = sorted_values[:FLAGS.explanation_candidate_num]
+				explanation = ''
+				expln_index = 1
+				max_attn = top_values[0]
+				print(sorted_values)
+
+				# get explanation for top 3 attn scores from attention list
+				for index, attn_score in top_values:
+					curr_explanation = data_set.get_expln_with_max_attn(index, attn_score, model.user_history_dict, user_history_idx_dict, cur_attn_distribution_dict)
 					if curr_explanation:
 						explanation += str(expln_index) + '. ' + curr_explanation + '\n'
 						expln_index += 1
@@ -370,13 +480,16 @@ def main(_):
 	if FLAGS.input_train_dir == "":
 		FLAGS.input_train_dir = FLAGS.data_dir
 
+	print('Training model? %s' % (str(FLAGS.decode)))
+
 	if FLAGS.decode:
+		print('Test mode: %s' % FLAGS.test_mode)
 		if FLAGS.test_mode == 'output_embedding':
 			output_embedding()
 		elif 'explain' in FLAGS.test_mode:
 			interactive_explain_mode()
 		elif FLAGS.test_mode == 'explanation_path':
-			find_explanation_path()
+			find_explanation_path_for_samples()
 		else:
 			get_product_scores()
 	else:

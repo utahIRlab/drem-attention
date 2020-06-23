@@ -1,0 +1,211 @@
+<!-- You must include this JavaScript file -->
+<script src="https://assets.crowd.aws/crowd-html-elements.js"></script>
+
+<!-- For the full list of available Crowd HTML Elements and their input/output documentation,
+      please refer to https://docs.aws.amazon.com/sagemaker/latest/dg/sms-ui-template-reference.html -->
+<style>
+.horizontal-grp{
+    display:inline-block;
+    width: 45%;
+}
+
+.container{
+    height:auto;
+}
+
+.description{
+    vertical-align: top;
+    word-break: break-word;
+}
+
+.reviews{
+    width: 90%;
+}
+
+</style>
+
+<!-- You must include crowd-form so that your task submits answers to MTurk -->
+<crowd-form answer-format="flatten-objects">
+    <crowd-card>
+        <div class="container">
+          <h2>Given the user's review history, query and product returned for the query, answer the three questions provided in the tabbed section below.</h2>
+          <h5>Note: Please scroll down to go the tabbed section. Click on each tab (Tab1, Tab2, Tab3) to view the corresponding question.</h5>
+          	  <p>
+                  <strong>User query: </strong>
+                  <i>${query}</i>
+                  <!--<i>"electronics computer touch tablet accessory screen protector"</i>-->
+              </p>
+          	  <p>
+                  <strong>Product retrieved as search result:</strong>
+                  ${title}
+                  <!--QEONIX iPhone XS Max Privacy Screen Protector 6.5 inch, Premium Anti-Spy Real 9H Tempered 3D Glass / Case Friendly, Scratch Proof-->
+              </p>
+              <div>
+          	  <div class='horizontal-grp'>
+          	      <img src="${image}" width="200px"/>
+                  <!--<img src="https://images-na.ssl-images-amazon.com/images/I/61kUr8OIekL._SX679_.jpg" width="200px" height="200px"/>-->
+              </div>
+              <div class='horizontal-grp description'>
+                  <p>
+                      <strong>Product description:</strong>
+                      ${description}
+                      <!--<crowd-modal link-text="Click to view description">
+                          ${description}
+                      </crowd-modal>-->
+                  </p>
+                  <p>
+              	      <strong>Product url:</strong>
+              	     <a href="https://www.amazon.com/dp/${product}">https://www.amazon.com/dp/${product}</a>
+              	     <!--<a href="https://www.amazon.com/dp/B00AGABISW">https://www.amazon.com/dp/B00AGABISW</a>-->
+
+          	     </p>
+              </div>
+              </div>
+              <div>
+                  <strong>Past reviews by user:</strong>
+                  <!--${previous_reviews}-->
+                  <ul class='reviews'>
+                      ${previous_reviews}
+                      <!--<li>great case this is a great case if you are look for a case to protect you iphone you should buy this my husband love his new case it cover the phone the price was great i had search for the otterbox defend case and the price was to much but this was a great buy well worth the money and he wants another just to have a back up lol love case</li>
+                      <li>cover sheet i had a issue with not get my product i contact the company and they respond to me asap and within a few days i received my product which works great on my bb torch</li>
+                      <li>snap on case great product and fast shipping this item ready do protect my blackberry the only thing is if you drop your phone the case break eas if the shipping didnt cost so much i would order more</li>
+                      <li>nice case i love this case i got so many compliments about my case but it was broke and i contact the company and they treat me great i will be order me and some of my friends this case i want to thank the company for hand my issue and they can look forward to me order other</li>-->
+                  </ul>
+              </div>
+        </div>
+    </crowd-card>
+    <!-- The crowd-classifier element will create a tool for the Worker to select the
+   correct answer to your question -->
+  <crowd-tabs>
+    <crowd-tab header="Tab 1">
+      <h2>Product relevance</h2>
+
+    <crowd-classifier
+      header="Which of the two explanation groups help you learn more about the product that was retrieved above?"
+      name="product-relevance"
+      categories="['Group A', 'Group B', 'Both A and B', 'None']"
+    >
+
+      <classification-target>
+          <div class='explanation-container'>
+            <div class='horizontal-grp' style='text-align: center'>
+              <p>
+                  <strong>Group A</strong>
+<!--                   <p> The explanation from Model A goes here. </p> -->
+              <p>${drem_explanation}</p>
+              </p>
+          </div>
+          <div class='horizontal-grp' style='float:right;text-align: center'>
+              <p>
+                  <strong>Group B</strong>
+<!--                   <p> The explanation from Model B goes here. </p> -->
+            <p>${drem_attn_explanation}</p>
+              </p>
+          </div>
+        </div>
+        </classification-target>
+
+            <!-- Use the short-instructions section for quick instructions that the Worker
+              will see while working on the task. Including some basic examples of
+              good and bad answers here can help get good results. You can include
+              any HTML here. -->
+    <short-instructions>
+        <!--If someone searched for <strong>${query}</strong>, would this item be relevant to them?-->
+        There are two explanation groups with atmost 3 explanations in each explaining why the product above was retrieved for the query given by the user. Please identify which of the two groups help you in understanding better about the product that was retrieved. <br>
+     <i> Note: The product retrieved is displayed in the above section. </i>
+
+      </short-instructions>
+      <!-- Use the full-instructions section for more detailed instructions that the
+            Worker can open while working on the task. Including more detailed
+            instructions and additional examples of good and bad answers here can
+            help get good results. You can include any HTML here. -->
+<!--       <full-instructions header="Search Relevance Instructions">
+        <p>If someone searched for <b>${query}</b>, would this item be relevant to them?</p>
+        <div>
+          <h4>Definition of relevance:</h4>
+
+          <ul>
+              <li>The item can be <strong>used directly for the interest</strong><br />
+              (e.g. tent in <em>camping</em>)</li>
+              <li>The item is <strong>themed towards a certain interest</strong><br />
+              (e.g. <em>Disney Frozen</em> themed clothing)</li>
+              <li>The item, while not directly themed for the interest, is <strong>used by interest enthusiasts</strong><br />
+              (e.g. generic knife that people use for <em>mushroom hunting</em>, clothing used to dress up as <em>Lord of the Rings</em> (movie/book) characters)</li>
+          </ul>
+          <p>Note that related toys/decorations/themed items count as 'Yes'.</p>
+        </div>
+      </full-instructions> -->
+    </crowd-classifier>
+  </crowd-tab>
+    <crowd-tab header="Tab 2">
+      <h2>Query relevance</h2>
+
+    <crowd-classifier
+      header="Which of the two explanation groups help you learn more about the user's query and how relevant items to the query might look like?"
+      name="query-relevance"
+      categories="['Group A', 'Group B', 'Both A and B', 'None']"
+    >
+
+      <classification-target>
+          <div class='explanation-container'>
+            <div class='horizontal-grp' style='text-align: center'>
+              <p>
+                  <strong>Group A</strong>
+<!--                   <p> The explanation from Model A goes here. </p> -->
+              <p>${drem_explanation}</p>
+              </p>
+          </div>
+          <div class='horizontal-grp' style='float:right;text-align: center'>
+              <p>
+                  <strong>Group B</strong>
+<!--                   <p> The explanation from Model B goes here. </p> -->
+            <p>${drem_attn_explanation}</p>
+              </p>
+          </div>
+        </div>
+        </classification-target>
+    <short-instructions>
+        There are two explanation groups with atmost 3 explanations in each explaining why the product above was retrieved for the query given by the user. Please identify which of the two groups help you in understanding better about the query that the user provided and what relevant items to the query would look like. <br>
+     <i> Note: The product retrieved is displayed in the above section. </i>
+
+      </short-instructions>
+
+    </crowd-classifier>
+  </crowd-tab>
+    <crowd-tab header="Tab 3">
+      <h2>Usefulness</h2>
+
+    <crowd-classifier
+      header="After reading which of the two explanation groups, the people would be more likely to purchase the product?"
+      name="usefulness"
+      categories="['Group A', 'Group B', 'Both A and B', 'None']"
+    >
+
+      <classification-target>
+          <div class='explanation-container'>
+            <div class='horizontal-grp' style='text-align: center'>
+              <p>
+                  <strong>Group A</strong>
+<!--                   <p> The explanation from Model A goes here. </p> -->
+              <p>${drem_explanation}</p>
+              </p>
+          </div>
+          <div class='horizontal-grp' style='float:right;text-align: center'>
+              <p>
+                  <strong>Group B</strong>
+<!--                   <p> The explanation from Model B goes here. </p> -->
+            <p>${drem_attn_explanation}</p>
+              </p>
+          </div>
+        </div>
+        </classification-target>
+    <short-instructions>
+        There are two explanation groups with atmost 3 explanations in each explaining why the product above was retrieved for the query given by the user. Please identify after reading which of the two explanation groups, the people would more likely purchase the product retrieved.<br>
+     <i> Note: The product retrieved is displayed in the above section. </i>
+
+      </short-instructions>
+
+    </crowd-classifier>
+  </crowd-tab>
+</crowd-tabs>
+</crowd-form>

@@ -13,10 +13,10 @@ def process_explanation(orig_str, **kwargs):
     product = kwargs['product'].strip()
     new_str = new_str.replace("'%s'" % product, 'this product')
     # Add links to products other than this product
-    p = re.compile("'[\w\d]{10}'", re.IGNORECASE)
+    p = re.compile("'<em>[\w\d]{10}</em>'", re.IGNORECASE)
     other_products = [x.strip("'") for x in p.findall(new_str)]
     for op in other_products:
-        new_str = new_str.replace(op, '<a href="https://www.amazon.com/dp/%s">%s</a>' % (op,op))
+        new_str = new_str.replace(op, '<a href="https://www.amazon.com/dp/%s">%s</a>' % (op[4:-5],op))
     return new_str
 
 def process_reviews(orig_str, **kwargs):

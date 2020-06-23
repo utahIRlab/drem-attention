@@ -407,7 +407,7 @@ class Tensorflow_data:
 		# if zero vec has max attn
 		if index == len(user_history_dict.keys()):
 			explanation = self.generate_explanation('popularity', att_percentage)
-		elif att_percentage >= 0.01:
+		elif float(att_percentage) >= 0.01:
 			key = sorted(list(user_history_dict.keys()))[index]
 			print('%d, %.2f, %s' % (index, attn_score, key))
 			sub_attn_values = np.array(attn_distribution_dict[key])

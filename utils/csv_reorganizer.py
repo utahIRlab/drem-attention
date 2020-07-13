@@ -11,17 +11,31 @@ def process_explanation(orig_str, **kwargs):
     new_str = '<li>' + '</li>\n<li>'.join(arr) + '</li>'
     # Replace product id with 'this product'
     product = kwargs['product'].strip()
+    query = kwargs['query'].strip()
     new_str = new_str.replace("'%s'" % product, 'this product')
+    new_str = new_str.replace("<em>${query}</em>", "'<em>%s</em>'" % query)
     # Add links to products other than this product
     p = re.compile("'<em>[\w\d]{10}</em>'", re.IGNORECASE)
     other_products = [x.strip("'") for x in p.findall(new_str)]
     for op in other_products:
-        new_str = new_str.replace(op, '<a href="https://www.amazon.com/dp/%s">%s</a>' % (op[4:-5],op))
+        new_str = new_str.replace(op, '<a href="https://www.amazon.com/dp/%s" target="_blank">%s</a>' % (op[4:-5],op))
+    #p = re.compile("'[\w\d]{10}'", re.IGNORECASE)
+    #other_products = [x.strip("'") for x in p.findall(new_str)]
+    #for op in other_products:
+    #    new_str = new_str.replace(op, '<a href="https://www.amazon.com/dp/%s" target="_blank">%s</a>' % (op,op))
+    p = re.compile("<em>.*?</em>", re.IGNORECASE)
+    other_products = [x.strip("'") for x in p.findall(new_str)]
+    for op in other_products:
+        new_str = new_str.replace(op, '<b>%s</b>' % (op))
     return new_str
 
 def process_reviews(orig_str, **kwargs):
     arr = orig_str.strip().split('\n')
     new_str = '<li>' + '</li>\n<li>'.join(arr) + '</li>'
+    p = re.compile("<em>[\w\d]{10}</em>", re.IGNORECASE)
+    other_products = [x.strip("'") for x in p.findall(new_str)]
+    for op in other_products:
+        new_str = new_str.replace(op, '<a href="https://www.amazon.com/dp/%s" target="_blank">%s</a>' % (op[4:-5],op))
     return new_str
 
 def process_description(orig_str, **kwargs):
@@ -61,7 +75,7 @@ with open(OUTPUT_CSV_FILE, 'w') as csvfile:
     for row in data_rows:
         for i in range(len(row)):
             if head_row[i] in PROCESS_FUNC_DICT:
-                row[i] = PROCESS_FUNC_DICT[head_row[i]](row[i], product=row[head_name_dict['product']])
+                row[i] = PROCESS_FUNC_DICT[head_row[i]](row[i], product=row[head_name_dict['product']], query=row[head_name_dict['query']])
         writer.writerow(row)
 
 

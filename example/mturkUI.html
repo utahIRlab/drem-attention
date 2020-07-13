@@ -22,21 +22,25 @@
     width: 90%;
 }
 
+li{
+    margin: 5px 0;
+}
+
 </style>
 
 <!-- You must include crowd-form so that your task submits answers to MTurk -->
 <crowd-form answer-format="flatten-objects">
     <crowd-card>
         <div class="container">
-          <h2>Given the user's review history, query and product returned for the query, answer the three questions provided in the tabbed section below.</h2>
-          <h5>Note: Please scroll down to go the tabbed section. Click on each tab (Tab1, Tab2, Tab3) to view the corresponding question.</h5>
+          <h2>Given the user's search query, review history, and the product returned by the product search engine, answer 3 questions provided in the tabbed section below.</h2>
+          <h3>Please scroll down to go the tabbed section. Click on each question (Question 1, Question 2, Question 3) to view the corresponding question.</h3>
           	  <p>
-                  <strong>User query: </strong>
+                  <strong>User's Query: </strong>
                   <i>${query}</i>
                   <!--<i>"electronics computer touch tablet accessory screen protector"</i>-->
               </p>
           	  <p>
-                  <strong>Product retrieved as search result:</strong>
+                  <strong>Product retrieved as the search result:</strong>
                   ${title}
                   <!--QEONIX iPhone XS Max Privacy Screen Protector 6.5 inch, Premium Anti-Spy Real 9H Tempered 3D Glass / Case Friendly, Scratch Proof-->
               </p>
@@ -62,7 +66,7 @@
               </div>
               </div>
               <div>
-                  <strong>Past reviews by user:</strong>
+                  <strong>The most recent purchases and reviews by this user:</strong>
                   <!--${previous_reviews}-->
                   <ul class='reviews'>
                       ${previous_reviews}
@@ -77,17 +81,20 @@
     <!-- The crowd-classifier element will create a tool for the Worker to select the
    correct answer to your question -->
   <crowd-tabs>
-    <crowd-tab header="Tab 1">
-      <h2>Product relevance</h2>
-
+    <crowd-tab header="Question 1">
+      <h2>Information relevance</h2>
+      <p style="color:blue;">Please remeber to answer <em>Question 2</em> and <em>Question 3</em> in the tabs above.</p>
     <crowd-classifier
-      header="Which of the two explanation groups help you learn more about the product that was retrieved above?"
-      name="product-relevance"
-      categories="['Group A', 'Group B', 'Both A and B', 'None']"
+      header="Which group of search explanations help you learn more about the product, the query, and why the search engine retrives the product for the user?"
+      name="information-relevance"
+      categories="['Group A', 'Group B', 'Both A and B are good', 'None']"
     >
 
       <classification-target>
           <div class='explanation-container'>
+
+            <p> <em> * You could click the items in explanations to see more information about them.</em> </p>
+
             <div class='horizontal-grp' style='text-align: center'>
               <p>
                   <strong>Group A</strong>
@@ -111,7 +118,8 @@
               any HTML here. -->
     <short-instructions>
         <!--If someone searched for <strong>${query}</strong>, would this item be relevant to them?-->
-        There are two explanation groups with atmost 3 explanations in each explaining why the product above was retrieved for the query given by the user. Please identify which of the two groups help you in understanding better about the product that was retrieved. <br>
+        Suppose that the search engine will show search explanations for the retrieved product, and there are two groups of explanations with atmost 3 explanations in each explaining why the product above was retrieved for the query given by the user. 
+        Please identify which of the two groups help you more in understanding better about the product, the query, and why the product is retrieved for the user. <br>
      <i> Note: The product retrieved is displayed in the above section. </i>
 
       </short-instructions>
@@ -119,70 +127,41 @@
             Worker can open while working on the task. Including more detailed
             instructions and additional examples of good and bad answers here can
             help get good results. You can include any HTML here. -->
-<!--       <full-instructions header="Search Relevance Instructions">
-        <p>If someone searched for <b>${query}</b>, would this item be relevant to them?</p>
+      <full-instructions header="Explanation Information Utility Instructions">
+        <p>
+          Suppose that the search engine has provided two groups of explanations to explain why the product above was retrieved for the query given by the user. Based on the information provided about the query, the product, and the user, which group of the explanations help you learn more and better understand the intent of the query, the characteristics of the product, and the preferences of the user?
+        </p>
         <div>
-          <h4>Definition of relevance:</h4>
+          <h4>Definition of "better" could be but not limited to the followings:</h4>
 
           <ul>
-              <li>The item can be <strong>used directly for the interest</strong><br />
-              (e.g. tent in <em>camping</em>)</li>
-              <li>The item is <strong>themed towards a certain interest</strong><br />
-              (e.g. <em>Disney Frozen</em> themed clothing)</li>
-              <li>The item, while not directly themed for the interest, is <strong>used by interest enthusiasts</strong><br />
-              (e.g. generic knife that people use for <em>mushroom hunting</em>, clothing used to dress up as <em>Lord of the Rings</em> (movie/book) characters)</li>
+              <li>The explanation helps you learn more about <strong> the people searched for this query or the items relevant to this query</strong><br />
+              (e.g. people who searched for <em>CDs</em> are often looking for products that belong to <em>Music</em>)</li>
+              <li>The explanation helps you learn more about <strong>the characteristics of the product</strong><br />
+              (e.g. <em>QC35</em> is a headphone made by <em>Bose</em>)</li>
+              <li>The explanation helps you learn more about <strong>the characteristics of the user</strong><br />
+              (e.g. this user often purchase products from <em>Bose</em>)</li>
+              <li>The explanation helps you understand better about <strong>why the search engine retrieves the product for the user</strong><br />
+              (e.g. the product is retrieved mostly becase it is a popular product under the category <em>Headphone</em>)</li>
           </ul>
-          <p>Note that related toys/decorations/themed items count as 'Yes'.</p>
         </div>
-      </full-instructions> -->
+      </full-instructions>
     </crowd-classifier>
   </crowd-tab>
-    <crowd-tab header="Tab 2">
-      <h2>Query relevance</h2>
-
-    <crowd-classifier
-      header="Which of the two explanation groups help you learn more about the user's query and how relevant items to the query might look like?"
-      name="query-relevance"
-      categories="['Group A', 'Group B', 'Both A and B', 'None']"
-    >
-
-      <classification-target>
-          <div class='explanation-container'>
-            <div class='horizontal-grp' style='text-align: center'>
-              <p>
-                  <strong>Group A</strong>
-<!--                   <p> The explanation from Model A goes here. </p> -->
-              <p>${drem_explanation}</p>
-              </p>
-          </div>
-          <div class='horizontal-grp' style='float:right;text-align: center'>
-              <p>
-                  <strong>Group B</strong>
-<!--                   <p> The explanation from Model B goes here. </p> -->
-            <p>${drem_attn_explanation}</p>
-              </p>
-          </div>
-        </div>
-        </classification-target>
-    <short-instructions>
-        There are two explanation groups with atmost 3 explanations in each explaining why the product above was retrieved for the query given by the user. Please identify which of the two groups help you in understanding better about the query that the user provided and what relevant items to the query would look like. <br>
-     <i> Note: The product retrieved is displayed in the above section. </i>
-
-      </short-instructions>
-
-    </crowd-classifier>
-  </crowd-tab>
-    <crowd-tab header="Tab 3">
+    <crowd-tab header="Question 2">
       <h2>Usefulness</h2>
-
+      <p style="color:blue;">Please remeber to answer <em>Question 3</em> in the tab above.</p>
     <crowd-classifier
-      header="After reading which of the two explanation groups, the people would be more likely to purchase the product?"
-      name="usefulness"
-      categories="['Group A', 'Group B', 'Both A and B', 'None']"
+      header="According to your opinion, which group of explanations is more likely to attract the user to buy this product?"
+      name="Usefulness"
+      categories="['Group A', 'Group B', 'Both A and B are good', 'None']"
     >
 
       <classification-target>
           <div class='explanation-container'>
+
+            <p> <em> * You could click the items in explanations to see more information about them.</em> </p>
+
             <div class='horizontal-grp' style='text-align: center'>
               <p>
                   <strong>Group A</strong>
@@ -200,11 +179,75 @@
         </div>
         </classification-target>
     <short-instructions>
-        There are two explanation groups with atmost 3 explanations in each explaining why the product above was retrieved for the query given by the user. Please identify after reading which of the two explanation groups, the people would more likely purchase the product retrieved.<br>
+        Suppose that the search engine will show one group of explanations for the retrieved product and there are two explanation groups with atmost 3 explanations in each explaining why the product above was retrieved for the query given by the user. 
+        Please identify which of the two groups that you think would be useful in attracting the user to purchase the product. <br>
      <i> Note: The product retrieved is displayed in the above section. </i>
 
       </short-instructions>
+      <full-instructions header="Explanation Attractiveness Instructions">
+        <p>
+          Suppose that the search engine will provide one of the two groups of explanations along with the product to be shown to the user. Based on the information provided about the query, the product, and the user, according to your opinion, showing which group of the explanations will attract more users to purchase the product?
+        </p>
+        <div>
+          <h4>Definition of "attract" could be but not limited to the followings:</h4>
 
+          <ul>
+              <li>The explanation makes <strong> the product look like a good choice for people who searched the query</strong></li>
+              <li>The explanation makes the user think that <strong>the search engine understand them and the product provided by the search engine is thus more likely to be useful for them</strong></li>
+          </ul>
+        </div>
+      </full-instructions>
+    </crowd-classifier>
+  </crowd-tab>
+    <crowd-tab header="Question 3">
+      <h2>Satisfaction</h2>
+      <p style="color:blue;">Please make sure that you have answered all the questions in the tabs above before clicking the <em>submit</em> button on the bottom of the page.</p>
+    <crowd-classifier
+      header="Imagine that you are searching and shopping products online, seeing which group of search result explanations would increase your satisfaction with the search engine and the e-shopping platform?"
+      name="satisfaction"
+      categories="['Group A', 'Group B', 'Both A and B are good', 'None']"
+    >
+
+      <classification-target>
+          <div class='explanation-container'>
+
+            <p> <em> * You could click the items in explanations to see more information about them.</em> </p>
+
+            <div class='horizontal-grp' style='text-align: center'>
+              <p>
+                  <strong>Group A</strong>
+<!--                   <p> The explanation from Model A goes here. </p> -->
+              <p>${drem_explanation}</p>
+              </p>
+          </div>
+          <div class='horizontal-grp' style='float:right;text-align: center'>
+              <p>
+                  <strong>Group B</strong>
+<!--                   <p> The explanation from Model B goes here. </p> -->
+            <p>${drem_attn_explanation}</p>
+              </p>
+          </div>
+        </div>
+        </classification-target>
+    <short-instructions>
+        Suppose that search engines on e-shopping platforms can provide detailed explanations on why they retrieved certain products for you, and there are two types of explanations that they could provide: those similar to Group A and those similar to Group B.
+        Please identify after reading which of the two explanation groups, your satisfaction with the service of the e-shopping search engine would increase more.<br>
+     <i> Note: The product retrieved is displayed in the above section. </i>
+
+      </short-instructions>
+      <full-instructions header="Explanation Satisfaction Instructions">
+        <p>
+          Suppose that the search engine can provide one of the two groups of explanations along with the product to be shown to the user. If you are searching and shopping on a e-shopping website, which group of explanations would you prefer to see? Would you be more satisfied with the service of the e-shopping search engine if it shows one of the two groups of explanations along with the product? 
+        </p>
+        <div>
+          <h4>Definition of "satisfaction" could be but not limited to the followings:</h4>
+
+          <ul>
+              <li>I would be more likely to <strong>use</strong> this e-shopping search engine if it could show the explanation for the product when I use it.</li>
+              <li>I would be more likely to <strong>trust</strong> this e-shopping search engine if the search engine can always explain why it retrieves each product using explanations simimlar to those presented in the group.</li>
+          </ul>
+        </div>
+      </full-instructions>
     </crowd-classifier>
   </crowd-tab>
 </crowd-tabs>

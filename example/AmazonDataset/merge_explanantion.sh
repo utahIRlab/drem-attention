@@ -20,4 +20,4 @@ python utils/merge_with_replacement.py ./example/AmazonDataset/electronics/drem-
 
 python utils/csv_reorganizer.py ./example/AmazonDataset/electronics/original.csv ./example/AmazonDataset/electronics/mturk-input.csv
 
-python utils/csv_sampler.py ./example/AmazonDataset/electronics/mturk-input.csv ./example/AmazonDataset/electronics/sample.csv 5
+python utils/csv_sampler.py ./example/AmazonDataset/electronics/mturk-input.csv ./example/AmazonDataset/electronics/sample.csv 5 5

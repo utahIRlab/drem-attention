@@ -370,33 +370,42 @@ class Tensorflow_data:
 		else:
 			return ''
 
-	def generate_explanation(self, relation_type, att_percentage, entity_type=None, entity_name=None):
-		EXPLANATION_TMPL_DEFAULT = "For {percentage}%, this product was retrieved because of its popularity among people who searched for this query."
-		EXPLANATION_TMPL_0 = "For {percentage}%, this product was retrieved because of the products previously purchased by the user, especially '<em>{entity_name}</em>'."
-		EXPLANATION_TMPL_1 = "For {percentage}%, this product was retrieved because of the <em>{relation_type}</em> of products previously purchased by the user, especially '<em>{entity_name}</em>'."
-		EXPLANATION_TMPL_2 = "For {percentage}%, this product was retrieved because of the {entity_type} <em>{relation_type}</em> with the products previously purchased by the user, especially '<em>{entity_name}</em>'."
+	def generate_explanation(self, relation_type, att_percentage, entity_type=None, entity_names=None):
+		EXPLANATION_TMPL_DEFAULT = "This product was retrieved <em>{percentage}%</em> because of its popularity among people who searched for '<em>${{query}}</em>'."
+		EXPLANATION_TMPL_0 = "This product was retrieved <em>{percentage}%</em> because of the products previously purchased by the user, such as"
+		EXPLANATION_TMPL_1 = "This product was retrieved <em>{percentage}%</em> because of the <em>{relation_type}</em> of products previously purchased by the user, such as"
+		EXPLANATION_TMPL_2 = "This product was retrieved <em>{percentage}%</em> because of the {entity_type} <em>{relation_type}</em> with the products previously purchased by the user, such as"
 		
 		explanation = None
 		if relation_type == 'popularity':
 			explanation = EXPLANATION_TMPL_DEFAULT.format(percentage=att_percentage)
 		elif relation_type == 'product':
 			explanation = EXPLANATION_TMPL_0.format(
-					percentage=att_percentage,
-					entity_name=entity_name
+					percentage=att_percentage
 				)
+			explanation += " '<em>%s</em>'" % entity_names[0] 
+			for n in range(1, len(entity_names)):
+				explanation += ", '<em>%s</em>'" % entity_names[n]
+			explanation += '.'
 		elif relation_type == 'brand' or relation_type == 'categories':
 			explanation = EXPLANATION_TMPL_1.format(
 					percentage=att_percentage,
-					relation_type=relation_type, 
-					entity_name=entity_name
+					relation_type=relation_type
 				)
+			explanation += " '<em>%s</em>'" % entity_names[0] 
+			for n in range(1, len(entity_names)):
+				explanation += ", '<em>%s</em>'" % entity_names[n]
+			explanation += '.'
 		else: #'also_bought', 'also_viewed', 'bought_together'
 			explanation = EXPLANATION_TMPL_2.format(
 					percentage=att_percentage,
 					entity_type=entity_type,
-					relation_type=relation_type, 
-					entity_name=entity_name
+					relation_type=relation_type
 				)
+			explanation += " '<em>%s</em>'" % entity_names[0] 
+			for n in range(1, len(entity_names)):
+				explanation += ", '<em>%s</em>'" % entity_names[n]
+			explanation += '.'
 		return explanation
 
 	def get_expln_with_max_attn(self, index, attn_score, user_history_dict, user_history_idx_dict,
@@ -409,21 +418,28 @@ class Tensorflow_data:
 			explanation = self.generate_explanation('popularity', att_percentage)
 		elif float(att_percentage) >= 0.01:
 			key = sorted(list(user_history_dict.keys()))[index]
+			if key == 'categories': #ignore explanations with categories since it is corelated to the query.
+				return None
 			print('%d, %.2f, %s' % (index, attn_score, key))
 			sub_attn_values = np.array(attn_distribution_dict[key])
 			print('history content')
 			print(user_history_idx_dict[key])
 			print('attention')
 			print(sub_attn_values)
-			max_sub_index = sub_attn_values.argmax()
-			hist_id = user_history_idx_dict[key][max_sub_index]
-			entity_name = self.get_entity(key, hist_id)
+			#max_sub_index = sub_attn_values.argmax()
+			max_sub_indexs = sub_attn_values.argsort()[-3:][::-1]
+			entity_names = []
+			for max_sub_index in max_sub_indexs:
+				hist_id = user_history_idx_dict[key][max_sub_index]
+				entity_name = self.get_entity(key, hist_id)
+				if entity_name:
+					entity_names.append(entity_name)
 			entity_type = user_history_dict[key]['entity_type']
-			if entity_name:
+			if len(entity_names) > 0:
 				explanation = self.generate_explanation(
 					key, 
 					att_percentage,
 					entity_type=entity_type, 
-					entity_name=entity_name
+					entity_names=entity_names
 				)
 		return explanation

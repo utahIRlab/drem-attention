@@ -430,13 +430,17 @@ def find_explanation_path_for_samples():
 				query = ' '.join([data_set.words[x] for x in query_word_idx if x < len(data_set.words)])
 				# Get 10 most recent reviews
 				review_idxs = data_set.user_history_idxs['review'][user_idx]
+				product_idxs = data_set.user_history_idxs['product'][user_idx]
 				sampled_review_count = 0
 				reviews = []
-				for review_id in reversed(review_idxs):
+				for k in reversed(range(len(review_idxs))):
+					review_id = review_idxs[k]
+					product_id = product_idxs[k]
+					product_name = data_set.product_ids[product_id]
 					review_word_idxs = data_set.org_review_text[review_id]
 					review_txt = ' '.join([data_set.words[idx] for idx in review_word_idxs if idx < len(data_set.words)])
 					sampled_review_count += 1
-					reviews.append(str(sampled_review_count) + ') ' + review_txt)
+					reviews.append(str(sampled_review_count) + ') <em>%s</em>: %s' % (product_name, review_txt))
 					if sampled_review_count >= FLAGS.explanation_previous_review_num:
 						break
 
@@ -480,7 +484,7 @@ def main(_):
 	if FLAGS.input_train_dir == "":
 		FLAGS.input_train_dir = FLAGS.data_dir
 
-	print('Training model? %s' % (str(FLAGS.decode)))
+	print('Testing model? %s' % (str(FLAGS.decode)))
 
 	if FLAGS.decode:
 		print('Test mode: %s' % FLAGS.test_mode)

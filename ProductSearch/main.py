@@ -479,6 +479,118 @@ def find_explanation_path_for_samples():
 
 			print("Generated " + str(count) + " explanations")
 
+def extract_explanation_features():
+	print("Reading data in %s" % FLAGS.data_dir)
+
+	data_set = data_util.Tensorflow_data(FLAGS.data_dir, FLAGS.input_train_dir, 'test')
+	data_set.read_train_product_ids(FLAGS.input_train_dir)
+	config = tf.ConfigProto()
+	config.gpu_options.allow_growth = True
+
+	# Read sample user-query-item triples for explanations
+	print('Read user-query-item triples for explanation features')
+	sampled_uqi_triples = None
+	if os.path.isfile(FLAGS.sample_file_for_explanation):
+		with open(FLAGS.sample_file_for_explanation) as fin:
+			sampled_uqi_triples = set()
+			for line in fin:
+				arr = line.split()
+				product_id = data_set.get_idx(arr[1], 'product') 
+				arr2 = arr[0].split('_')
+				user_id = data_set.get_idx(arr2[0], 'user') 
+				query_id = int(arr2[1])
+				sampled_uqi_triples.add((user_id, query_id, product_id))
+			if len(sampled_uqi_triples) < 1:
+				sampled_uqi_triples = None
+
+	with tf.Session(config=config) as sess, open(FLAGS.explanation_output_dir + 'explanation-features.csv', mode='w') as write_csv_file:
+		# Create model.
+		print("Read model")
+		model = create_model(sess, True, data_set, data_set.train_review_size)
+		words_to_train = float(FLAGS.max_train_epoch * data_set.word_count) + 1
+		test_seq = [i for i in xrange(data_set.review_size)]
+		model.setup_data_set(data_set, words_to_train)
+		model.intialize_epoch(test_seq)
+		model.prepare_test_epoch(sampled_uqi_triples=sampled_uqi_triples)
+		has_next = True
+
+		print('Extract explanation features\n')
+		csv_writer = csv.writer(write_csv_file, delimiter='\t')
+		csv_header = None
+		data_set.prepare_feature_stats(sampled_uqi_triples)
+		print('Feature stats initialization finished.\n')
+		#csv_writer.writerow(['sample_id', 'explanation', 'attention_weight', 'previous_reviews'])
+		count = 0
+
+		while has_next:
+			# get inputs
+			input_feed, has_next, uqr_pairs = model.get_test_batch()
+			# Compute attention
+			attn_distribution_dict, all_product_scores = model.step(sess, input_feed, True, 'explanation_features')
+
+			# get explanations and extract features
+			for i in range(len(uqr_pairs)):
+				user_idx, product_idx, query_idx, review_idx = uqr_pairs[i]
+				sample_id = '-'.join([str(user_idx), str(product_idx), str(query_idx), str(review_idx)])
+				print('%s...' % sample_id)
+				user = data_set.user_ids[user_idx]
+				product = data_set.product_ids[product_idx]
+				cur_product_score = all_product_scores[i][product_idx]
+				user_history_idx_dict, user_hist_len_dict =  model.get_history_and_length_dicts(review_idx)
+				
+				# Create explanations
+				cur_attn_distribution_dict = {key: attn_distribution_dict[key][i] for key in attn_distribution_dict}
+				indexed_attn_values = list(enumerate(cur_attn_distribution_dict['master']))
+				
+				#merge empty entity attention to global zero attention
+				sorted_keys = sorted(list(model.user_history_dict.keys()))
+				zero_vec_index = len(sorted_keys)
+				for idx in range(len(indexed_attn_values)):
+					if idx < zero_vec_index:
+						key = sorted_keys[idx]
+						if sum(cur_attn_distribution_dict[key]) == 0:
+							zero_attn_score = indexed_attn_values[zero_vec_index][1]
+							indexed_attn_values[zero_vec_index] = (zero_vec_index, zero_attn_score + indexed_attn_values[idx][1])
+							indexed_attn_values[idx] = (idx, 0)
+
+				#get max attn from master to find which slave attn is more important
+				sorted_values = sorted(indexed_attn_values, key=operator.itemgetter(1), reverse=True)
+				top_values = sorted_values[:FLAGS.explanation_candidate_num]
+				explanation = ''
+				expln_index = 1
+				max_attn = top_values[0]
+
+				# COMPUTE EXPLANATION FEATURES
+				header = ['sample_id']
+				row = [sample_id]
+				def add_features(feature_names, feature_values):
+					header.extend(feature_names)
+					row.extend(feature_values)
+					return
+				# Retrieval Performance features
+				perf_feature_names, perf_feature_values = data_set.get_performance_features(cur_product_score, all_product_scores[i])
+				add_features(perf_feature_names, perf_feature_values)
+
+				# get explanation for top 3 attn scores from attention list
+				exp_count = 0
+				for index, attn_score in top_values:
+					curr_explanation, relation_entity_list = data_set.get_expln_with_max_attn(index, attn_score, model.user_history_dict, user_history_idx_dict, cur_attn_distribution_dict, need_entity_list=True)
+					# add fidelity features
+					fid_feature_names, fid_feature_values = data_set.get_fidelity_features(exp_count, user_idx, product_idx, query_idx, review_idx, relation_entity_list)
+					add_features(fid_feature_names, fid_feature_values)
+					# add novelty features
+					nov_feature_names, nov_feature_values = data_set.get_novelty_features(exp_count, user_idx, product_idx, query_idx, review_idx, relation_entity_list)
+					add_features(nov_feature_names, nov_feature_values)
+					exp_count += 1
+
+				if csv_header == None:
+					csv_header = header
+					csv_writer.writerow(csv_header)
+				csv_writer.writerow(row)
+				count+=1
+
+			print("Generated " + str(count) + " explanations")
+	return
 
 def main(_):
 	if FLAGS.input_train_dir == "":
@@ -494,6 +606,8 @@ def main(_):
 			interactive_explain_mode()
 		elif FLAGS.test_mode == 'explanation_path':
 			find_explanation_path_for_samples()
+		elif FLAGS.test_mode == 'explanation_features':
+			extract_explanation_features()
 		else:
 			get_product_scores()
 	else:

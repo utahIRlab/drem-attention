@@ -282,6 +282,8 @@ class ProductSearchEmbedding_model(object):
 				output_feed = [scores for _, _, scores in entity_list]
 			elif 'explanation_path' in test_mode:
 				output_feed = [self.attn_distribution_dict]
+			elif 'explanation_features' in test_mode:
+				output_feed = [self.attn_distribution_dict, self.product_scores]
 			else:
 				output_feed = [self.product_scores]  # negative instance output
 
@@ -293,6 +295,8 @@ class ProductSearchEmbedding_model(object):
 				return outputs, self.embed_output_keys
 			elif 'explain' in test_mode:
 				return [(entity_list[i][0], entity_list[i][1], outputs[i]) for i in range(len(entity_list))], None
+			elif 'explanation_features' in test_mode:
+				return outputs[0], outputs[1]
 			else:
 				return outputs[0], None  # product scores to input user
 

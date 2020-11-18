@@ -520,7 +520,7 @@ class Tensorflow_data:
 		feature_values = []
 		default_value = 1.0
 		if relation_entity_list == None: # explanation not exist
-			default_value = -1.0
+			default_value = -100.0
 		# model confidence on relation existance 
 		feature_names.append(name_prefix + 'exist_confidence_mean')
 		feature_values.append(default_value)
@@ -544,7 +544,6 @@ class Tensorflow_data:
 		name_prefix = 'exp_' + str(index) + '_'
 		feature_names = []
 		feature_values = []
-		default_value = 0.0
 		
 		def add_mean_min_max_values(feature_name, value_list):
 			feature_names.append(feature_name + '_mean')
@@ -603,16 +602,16 @@ class Tensorflow_data:
 
 		else: # relation not exist
 			# entity_significance -> Inverse user frequency
-			add_mean_min_max_values(name_prefix + 'entity_iuf', default_value)
+			add_mean_min_max_values(name_prefix + 'entity_iuf', 0)
 			# entity_significance -> Inverse item frequency
-			add_mean_min_max_values(name_prefix + 'entity_iif', default_value)
+			add_mean_min_max_values(name_prefix + 'entity_iif', 0)
 			# user_entity_mutual_info -> mutual_info(user, entity)
-			add_mean_min_max_values(name_prefix + 'user_entity_mutual_info', default_value)
+			add_mean_min_max_values(name_prefix + 'user_entity_mutual_info', -100)
 			# item_entity_mutual_info -> mutual_info(item, entity)
-			add_mean_min_max_values(name_prefix + 'item_entity_mutual_info', default_value)
+			add_mean_min_max_values(name_prefix + 'item_entity_mutual_info', -100)
 			# relation_significance -> entity entropy with the relationship
 			feature_names.append('relation_info_entropy')
-			feature_values.append(default_value)
+			feature_values.append(-100)
 		print('novelty features')
 		print(feature_names)
 		print(feature_values)

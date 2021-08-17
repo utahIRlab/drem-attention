@@ -163,3 +163,19 @@ The MTurk UI design for the survey is available [here][mturk-ui-design].
 
 [mturk-setup-doc]: Setting%20up%20Mturk%20survey.pdf   
 [mturk-ui-design]: utils/mturkUI.html
+
+
+## Citation
+
+If you use these data in your research, please cite with the following BibTex entry.
+
+```
+@misc{ai2021modelagnostic,
+      title={Model-agnostic vs. Model-intrinsic Interpretability for Explainable Product Search}, 
+      author={Qingyao Ai and Lakshmi Narayanan Ramasamy},
+      year={2021},
+      eprint={2108.05317},
+      archivePrefix={arXiv},
+      primaryClass={cs.IR}
+}
+```
